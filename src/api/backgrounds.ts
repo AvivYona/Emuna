@@ -2,13 +2,116 @@ import { fetchJson } from "./client";
 import { Background } from "./types";
 import { fallbackBackgrounds } from "../utils/fallbackData";
 
+type BackgroundApiRecordBase = {
+  title?: string;
+  filename?: string;
+  thumbnailUrl?: string;
+  dominantColor?: string;
+};
+
+type BinaryBackgroundApiRecord = BackgroundApiRecordBase & {
+  id: string;
+  data: string;
+  contentType?: string;
+};
+
+type HostedBackgroundApiRecord = BackgroundApiRecordBase & {
+  _id: string;
+  imageUrl: string;
+};
+
+type BackgroundApiRecord =
+  | BinaryBackgroundApiRecord
+  | HostedBackgroundApiRecord;
+
+const DEFAULT_CONTENT_TYPE = "image/jpeg";
+
+function buildTitle(record: BackgroundApiRecord): string | undefined {
+  if (record.title) {
+    return record.title;
+  }
+
+  if (!record.filename) {
+    return undefined;
+  }
+
+  const withoutExtension = record.filename.replace(/\.[^/.]+$/, "");
+  const normalized = withoutExtension.replace(/[-_]+/g, " ").trim();
+
+  if (normalized.length === 0) {
+    return undefined;
+  }
+
+  return normalized;
+}
+
+function toDataUri(base64: string, contentType?: string): string {
+  const mime = contentType || DEFAULT_CONTENT_TYPE;
+  return `data:${mime};base64,${base64}`;
+}
+
+function mapBackground(record: BackgroundApiRecord): Background | null {
+  if ("imageUrl" in record) {
+    const { _id, imageUrl } = record;
+
+    if (!_id || !imageUrl) {
+      return null;
+    }
+
+    const thumbnailUrl = record.thumbnailUrl ?? imageUrl;
+
+    return {
+      _id,
+      title: buildTitle(record),
+      imageUrl,
+      thumbnailUrl,
+      dominantColor: record.dominantColor,
+    };
+  }
+
+  if ("data" in record) {
+    const { id, data } = record;
+
+    if (!id || !data) {
+      return null;
+    }
+
+    const imageUrl = toDataUri(data, record.contentType);
+    const thumbnailUrl = record.thumbnailUrl ?? imageUrl;
+
+    return {
+      _id: id,
+      title: buildTitle(record),
+      imageUrl,
+      thumbnailUrl,
+      dominantColor: record.dominantColor,
+    };
+  }
+
+  return null;
+}
+
+function isBackground(
+  value: Background | null
+): value is Background {
+  return value !== null;
+}
+
 export async function getBackgrounds(): Promise<Background[]> {
   try {
-    const data = await fetchJson<Background[]>("/backgrounds");
-    if (!Array.isArray(data) || data.length === 0) {
+    const data = await fetchJson<BackgroundApiRecord[]>("/backgrounds");
+
+    if (!Array.isArray(data)) {
       return fallbackBackgrounds;
     }
-    return data;
+
+    const backgrounds = data.map(mapBackground).filter(isBackground);
+
+    if (backgrounds.length === 0) {
+      return fallbackBackgrounds;
+    }
+
+    return backgrounds;
   } catch (error) {
     console.warn("שגיאה בשליפת רקעים, שימוש בנתוני ברירת מחדל", error);
     return fallbackBackgrounds;

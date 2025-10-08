@@ -11,7 +11,7 @@ export async function getQuotesByAuthorIds(authorIds: string[]): Promise<Quote[]
     }
     return data;
   } catch (error) {
-    console.warn('שגיאה בשליפת ציטוטים, שימוש בנתוני ברירת מחדל', error);
+    console.warn('Error fetching quotes, using fallback data', error);
     return fallbackQuotes;
   }
 }

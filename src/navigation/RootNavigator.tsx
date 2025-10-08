@@ -6,14 +6,18 @@ import { WelcomeScreen } from '../screens/WelcomeScreen';
 import { AuthorsScreen } from '../screens/AuthorsScreen';
 import { ScheduleScreen } from '../screens/ScheduleScreen';
 import { BackgroundsScreen } from '../screens/BackgroundsScreen';
+import { AdminLoginScreen } from '../screens/AdminLoginScreen';
+import { AdminScreen } from '../screens/AdminScreen';
 import { LoadingState } from '../components/LoadingState';
 import { colors } from '../theme';
 
 export type RootStackParamList = {
-  Welcome: undefined;
+  Welcome: { startAtSchedule?: boolean; showPicker?: boolean } | undefined;
   Authors: undefined;
   Schedule: undefined;
   Backgrounds: undefined;
+  AdminLogin: undefined;
+  Admin: { adminSecret: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -49,6 +53,8 @@ export const RootNavigator = () => {
         <Stack.Screen name="Schedule" component={ScheduleScreen} />
         <Stack.Screen name="Authors" component={AuthorsScreen} />
         <Stack.Screen name="Backgrounds" component={BackgroundsScreen} />
+        <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
+        <Stack.Screen name="Admin" component={AdminScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

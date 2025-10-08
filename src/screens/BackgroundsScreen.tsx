@@ -111,7 +111,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({ navigation
         target === 'lock' ? 'הרקע הוחל על מסך הנעילה.' : 'הרקע הוחל על מסך הבית.'
       );
     } catch (error) {
-      console.warn('שגיאה בהחלת רקע', error);
+      console.warn('Error applying background', error);
       Alert.alert('שגיאה בהגדרת הרקע', 'לא הצלחנו להחיל את הרקע שבחרת. נסה שוב מאוחר יותר.');
     } finally {
       setLoadingAction(null);
@@ -148,7 +148,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({ navigation
         );
       }
     } catch (error) {
-      console.warn('שגיאה בשמירת רקע', error);
+      console.warn('Error saving background', error);
       if (error instanceof Error) {
         if (error.message === BACKGROUND_ASSET_ERRORS.permissionDenied) {
           Alert.alert(
@@ -185,7 +185,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({ navigation
           : 'רקע מאמונה לשימושך.',
       });
     } catch (error) {
-      console.warn('שגיאה בשיתוף הרקע', error);
+      console.warn('Error sharing background', error);
       Alert.alert('שגיאה בשיתוף', 'לא הצלחנו לשתף את הרקע. נסו שוב מאוחר יותר.');
     } finally {
       setLoadingAction(null);
@@ -193,7 +193,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({ navigation
   };
 
   const handleEditSchedule = () => {
-    navigation.navigate('Schedule');
+    navigation.navigate('Welcome', { startAtSchedule: true, showPicker: true });
   };
 
   const handleEditAuthors = () => {
@@ -205,7 +205,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({ navigation
   };
 
   const handleEnableQuotes = () => {
-    navigation.navigate('Schedule');
+    navigation.navigate('Welcome', { startAtSchedule: true, showPicker: true });
   };
 
   useEffect(() => {

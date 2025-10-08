@@ -20,4 +20,6 @@ export const colors = {
   accent: palette.accent,
   accentSoft: palette.accentSoft,
   divider: 'rgba(224, 225, 221, 0.15)',
+  danger: palette.danger,
+  success: palette.success,
 };

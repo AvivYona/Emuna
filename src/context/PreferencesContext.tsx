@@ -32,7 +32,7 @@ const parseFavoriteAuthors = (value?: string) => {
     }
     return [];
   } catch (error) {
-    console.warn('שגיאה בקריאת מחברים מ-AsyncStorage', error);
+    console.warn('Error reading authors from AsyncStorage', error);
     return [];
   }
 };
@@ -74,7 +74,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
         });
       } catch (error) {
         if (!isMounted) return;
-        console.warn('שגיאה בטעינת ההעדפות מ-AsyncStorage', error);
+        console.warn('Error loading preferences from AsyncStorage', error);
         setState((prev) => ({ ...prev, loaded: true }));
       }
     };
@@ -88,7 +88,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const setWantsQuotes = useCallback((value: boolean) => {
     setBoolean(STORAGE_KEYS.wantsQuotes, value).catch((error) => {
-      console.warn('שגיאה בשמירת העדפת ציטוטים ל-AsyncStorage', error);
+      console.warn('Error saving quote preference to AsyncStorage', error);
     });
     setState((prev) => ({ ...prev, wantsQuotes: value }));
     if (!value) {
@@ -99,11 +99,11 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const setFavoriteAuthors = useCallback((ids: string[]) => {
     if (!ids.length) {
       removeItem(STORAGE_KEYS.favoriteAuthors).catch((error) => {
-        console.warn('שגיאה במחיקת מחברים מ-AsyncStorage', error);
+        console.warn('Error deleting authors from AsyncStorage', error);
       });
     } else {
       setString(STORAGE_KEYS.favoriteAuthors, serializeFavoriteAuthors(ids)).catch((error) => {
-        console.warn('שגיאה בשמירת מחברים מועדפים ל-AsyncStorage', error);
+        console.warn('Error saving favorite authors to AsyncStorage', error);
       });
     }
     setState((prev) => ({ ...prev, favoriteAuthors: ids }));
@@ -112,11 +112,11 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const setNotificationTime = useCallback((time?: string) => {
     if (!time) {
       removeItem(STORAGE_KEYS.notificationTime).catch((error) => {
-        console.warn('שגיאה במחיקת שעת התראה מ-AsyncStorage', error);
+        console.warn('Error deleting notification time from AsyncStorage', error);
       });
     } else {
       setString(STORAGE_KEYS.notificationTime, time).catch((error) => {
-        console.warn('שגיאה בשמירת שעת התראה ל-AsyncStorage', error);
+        console.warn('Error saving notification time to AsyncStorage', error);
       });
     }
     setState((prev) => ({ ...prev, notificationTime: time }));
@@ -129,7 +129,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
           removeItem(STORAGE_KEYS.selectedBackground),
           removeItem(STORAGE_KEYS.selectedBackgroundTarget),
         ]).catch((error) => {
-          console.warn('שגיאה במחיקת רקע נבחר מ-AsyncStorage', error);
+          console.warn('Error deleting selected background from AsyncStorage', error);
         });
         setState((prev) => ({ ...prev, selectedBackground: undefined, selectedBackgroundTarget: undefined }));
         return;
@@ -138,10 +138,10 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const nextTarget: BackgroundTarget = target ?? state.selectedBackgroundTarget ?? 'home';
 
       setString(STORAGE_KEYS.selectedBackground, id).catch((error) => {
-        console.warn('שגיאה בשמירת רקע נבחר ל-AsyncStorage', error);
+        console.warn('Error saving selected background to AsyncStorage', error);
       });
       setString(STORAGE_KEYS.selectedBackgroundTarget, nextTarget).catch((error) => {
-        console.warn('שגיאה בשמירת יעד רקע ל-AsyncStorage', error);
+        console.warn('Error saving background target to AsyncStorage', error);
       });
 
       setState((prev) => ({ ...prev, selectedBackground: id, selectedBackgroundTarget: nextTarget }));
@@ -157,7 +157,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       removeItem(STORAGE_KEYS.selectedBackground),
       removeItem(STORAGE_KEYS.selectedBackgroundTarget),
     ]).catch((error) => {
-      console.warn('שגיאה באיפוס ההעדפות ב-AsyncStorage', error);
+      console.warn('Error resetting preferences in AsyncStorage', error);
     });
     setState({ wantsQuotes: undefined, favoriteAuthors: [], notificationTime: undefined, selectedBackground: undefined, selectedBackgroundTarget: undefined, loaded: true });
     cancelDailyQuoteNotification();
@@ -170,7 +170,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!state.favoriteAuthors.length) return;
 
     scheduleDailyQuoteNotification(state.notificationTime, state.favoriteAuthors).catch((error) => {
-      console.warn('כישלון בתזמון התראה יומית', error);
+      console.warn('Failed to schedule daily notification', error);
     });
   }, [state.loaded, state.wantsQuotes, state.notificationTime, state.favoriteAuthors]);
 

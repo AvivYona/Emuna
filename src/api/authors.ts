@@ -10,7 +10,7 @@ export async function getAuthors(): Promise<Author[]> {
     }
     return data;
   } catch (error) {
-    console.warn('שגיאה בשליפת מחברים, שימוש בנתוני ברירת מחדל', error);
+    console.warn('Error fetching authors, using fallback data', error);
     return fallbackAuthors;
   }
 }

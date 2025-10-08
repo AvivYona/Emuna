@@ -113,7 +113,7 @@ export async function getBackgrounds(): Promise<Background[]> {
 
     return backgrounds;
   } catch (error) {
-    console.warn("שגיאה בשליפת רקעים, שימוש בנתוני ברירת מחדל", error);
+    console.warn('Error fetching backgrounds, using fallback data', error);
     return fallbackBackgrounds;
   }
 }

@@ -15,19 +15,44 @@ export type WelcomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Wel
 
 type Step = 'intro' | 'schedule';
 
-export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
+export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation, route }) => {
   const { notificationTime, setWantsQuotes, setFavoriteAuthors, setNotificationTime } = usePreferences();
-  const [step, setStep] = useState<Step>('intro');
+  const startAtSchedule = route.params?.startAtSchedule ?? false;
+  const forceShowPicker = route.params?.showPicker;
+  const [step, setStep] = useState<Step>(startAtSchedule ? 'schedule' : 'intro');
   const initialDate = useMemo(() => fromTimeString(notificationTime), [notificationTime]);
   const [time, setTime] = useState<Date>(initialDate);
-  const [showPicker, setShowPicker] = useState<boolean>(Platform.OS === 'ios');
+  const [showPicker, setShowPicker] = useState<boolean>(forceShowPicker ?? Platform.OS === 'ios');
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!startAtSchedule && forceShowPicker !== true) {
+      return;
+    }
+
+    if (startAtSchedule) {
+      setStep('schedule');
+    }
+    if (forceShowPicker === true) {
+      setShowPicker(forceShowPicker);
+    }
+
+    navigation.setParams({ startAtSchedule: false, showPicker: false });
+  }, [startAtSchedule, forceShowPicker, navigation]);
 
   useEffect(() => {
     if (step !== 'schedule') return;
     setTime(initialDate);
-    setShowPicker(Platform.OS === 'ios');
-  }, [step, initialDate]);
+    setShowPicker((previous) => {
+      if (Platform.OS === 'ios') {
+        return true;
+      }
+      if (forceShowPicker) {
+        return true;
+      }
+      return previous;
+    });
+  }, [step, initialDate, forceShowPicker]);
 
   const handleDecline = () => {
     setWantsQuotes(false);
@@ -65,7 +90,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
       try {
         await ensureNotificationsPermission();
       } catch (error) {
-        console.warn('בקשת הרשאת התראות נכשלה', error);
+        console.warn('Notification permission request failed', error);
       }
       setWantsQuotes(true);
       navigation.navigate('Authors');
@@ -105,6 +130,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   onChange={onChange}
                   locale="he-IL"
+                  themeVariant={Platform.OS === 'ios' ? 'dark' : undefined}
+                  textColor={Platform.OS === 'ios' ? colors.textPrimary : undefined}
                 />
               </View>
             )}

@@ -57,14 +57,14 @@ async function adminRequest<T = unknown>(
 }
 
 export async function verifyAdminPassphrase(
-  passphrase: string
+  password: string
 ): Promise<boolean> {
   const response = await fetch(`${BASE_URL}/admin/verify`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ passphrase }),
+    body: JSON.stringify({ password }),
   });
 
   if (!response.ok) {
@@ -76,7 +76,7 @@ export async function verifyAdminPassphrase(
 }
 
 export async function fetchAdminQuotes(secret: string): Promise<Quote[]> {
-  const data = await adminRequest<Quote[]>("/admin/quotes", secret);
+  const data = await adminRequest<Quote[]>("/quotes", secret);
   return Array.isArray(data) ? data : [];
 }
 
@@ -84,7 +84,7 @@ export async function createAdminQuote(
   secret: string,
   payload: AdminQuotePayload
 ): Promise<Quote> {
-  return adminRequest<Quote>("/admin/quotes", secret, {
+  return adminRequest<Quote>("/quotes", secret, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -98,7 +98,7 @@ export async function updateAdminQuote(
   id: string,
   payload: AdminQuotePayload
 ): Promise<Quote> {
-  return adminRequest<Quote>(`/admin/quotes/${id}`, secret, {
+  return adminRequest<Quote>(`/quotes/${id}`, secret, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -111,7 +111,7 @@ export async function deleteAdminQuote(
   secret: string,
   id: string
 ): Promise<void> {
-  await adminRequest(`/admin/quotes/${id}`, secret, {
+  await adminRequest(`/quotes/${id}`, secret, {
     method: "DELETE",
   });
 }
@@ -119,7 +119,7 @@ export async function deleteAdminQuote(
 export async function fetchAdminBackgrounds(
   secret: string
 ): Promise<Background[]> {
-  const data = await adminRequest<Background[]>("/admin/backgrounds", secret);
+  const data = await adminRequest<Background[]>("/backgrounds", secret);
   return Array.isArray(data) ? data : [];
 }
 
@@ -127,7 +127,7 @@ export async function createAdminBackground(
   secret: string,
   payload: AdminBackgroundPayload
 ): Promise<Background> {
-  return adminRequest<Background>("/admin/backgrounds", secret, {
+  return adminRequest<Background>("/backgrounds", secret, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -141,7 +141,7 @@ export async function updateAdminBackground(
   id: string,
   payload: AdminBackgroundPayload
 ): Promise<Background> {
-  return adminRequest<Background>(`/admin/backgrounds/${id}`, secret, {
+  return adminRequest<Background>(`/backgrounds/${id}`, secret, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -154,7 +154,7 @@ export async function deleteAdminBackground(
   secret: string,
   id: string
 ): Promise<void> {
-  await adminRequest(`/admin/backgrounds/${id}`, secret, {
+  await adminRequest(`/backgrounds/${id}`, secret, {
     method: "DELETE",
   });
 }

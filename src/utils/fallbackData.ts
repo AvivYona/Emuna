@@ -28,7 +28,8 @@ export const fallbackQuotes: Quote[] = [
 export const fallbackBackgrounds: Background[] = [
   {
     _id: 'bg-1',
-    title: 'ים של תקווה',
+    filename: 'hopeful-sea.jpg',
+    displayName: 'ים של תקווה',
     imageUrl:
       'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80',
     thumbnailUrl:
@@ -37,7 +38,8 @@ export const fallbackBackgrounds: Background[] = [
   },
   {
     _id: 'bg-2',
-    title: 'אור ראשון',
+    filename: 'first-light.jpg',
+    displayName: 'אור ראשון',
     imageUrl:
       'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1200&q=80',
     thumbnailUrl:
@@ -46,7 +48,8 @@ export const fallbackBackgrounds: Background[] = [
   },
   {
     _id: 'bg-3',
-    title: 'שקט במדבר',
+    filename: 'desert-calm.jpg',
+    displayName: 'שקט במדבר',
     imageUrl:
       'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1200&q=80',
     thumbnailUrl:
@@ -55,7 +58,8 @@ export const fallbackBackgrounds: Background[] = [
   },
   {
     _id: 'bg-4',
-    title: 'נשימה ביער',
+    filename: 'forest-breath.jpg',
+    displayName: 'נשימה ביער',
     imageUrl:
       'https://images.unsplash.com/photo-1501785888041-af3ef285b470?auto=format&fit=crop&w=1200&q=80',
     thumbnailUrl:
@@ -64,7 +68,8 @@ export const fallbackBackgrounds: Background[] = [
   },
   {
     _id: 'bg-5',
-    title: 'עננות רגועה',
+    filename: 'calm-clouds.jpg',
+    displayName: 'עננות רגועה',
     imageUrl:
       'https://images.unsplash.com/photo-1435224654926-ecc9f7fa028c?auto=format&fit=crop&w=1200&q=80',
     thumbnailUrl:

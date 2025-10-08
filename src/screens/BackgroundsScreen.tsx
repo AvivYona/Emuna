@@ -20,7 +20,7 @@ import { BackgroundCard } from '../components/BackgroundCard';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { colors, spacing } from '../theme';
 import { Background } from '../api/types';
-import { getBackgrounds } from '../api/backgrounds';
+import { getBackgrounds, getBackgroundDisplayName } from '../api/backgrounds';
 import { usePreferences } from '../context/PreferencesContext';
 import { formatTime, fromTimeString } from '../utils/time';
 import { applyWallpaper } from '../utils/wallpaper';
@@ -178,11 +178,10 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({ navigation
     setLoadingAction('share');
     try {
       const localUri = await ensureBackgroundLocalUri(previewBackground);
+      const backgroundName = getBackgroundDisplayName(previewBackground);
       await Share.share({
         url: localUri,
-        message: previewBackground.title
-          ? `רקע מאמונה: ${previewBackground.title}`
-          : 'רקע מאמונה לשימושך.',
+        message: `רקע מאמונה: ${backgroundName}`,
       });
     } catch (error) {
       console.warn('Error sharing background', error);
@@ -276,7 +275,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({ navigation
           </Pressable>
           {previewBackground ? (
             <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>{previewBackground.title ?? 'רקע מותאם'}</Text>
+              <Text style={styles.modalTitle}>{getBackgroundDisplayName(previewBackground)}</Text>
               <ImageBackground
                 source={{ uri: previewBackground.imageUrl }}
                 style={styles.modalImage}

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import {
   Alert,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -24,14 +25,22 @@ import {
   createAdminBackground,
   updateAdminBackground,
   deleteAdminBackground,
+  fetchAdminAuthors,
+  createAdminAuthor,
+  updateAdminAuthor,
+  deleteAdminAuthor,
   AdminQuotePayload,
   AdminBackgroundPayload,
+  AdminBackgroundFile,
+  AdminAuthorPayload,
 } from "../api/admin";
 import { Quote, Background, Author } from "../api/types";
 import { getAuthors } from "../api/authors";
+import { getBackgroundDisplayName } from "../api/backgrounds";
 import { LoadingState } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { useFocusEffect } from "@react-navigation/native";
+import * as ImagePicker from "expo-image-picker";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Admin">;
 
@@ -45,11 +54,22 @@ type BackgroundModalState =
   | { visible: true; mode: "create"; background?: undefined }
   | { visible: true; mode: "edit"; background: Background };
 
+type LocalImageAsset = {
+  uri: string;
+  name: string;
+  type: string;
+};
+
+type AuthorModalState =
+  | { visible: false }
+  | { visible: true; mode: "create"; author?: undefined }
+  | { visible: true; mode: "edit"; author: Author };
+
 export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
   const { adminSecret } = route.params;
-  const [activeTab, setActiveTab] = useState<"quotes" | "backgrounds">(
-    "quotes"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "quotes" | "backgrounds" | "authors"
+  >("quotes");
 
   const [authors, setAuthors] = useState<Author[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -65,16 +85,23 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
   const [backgroundModal, setBackgroundModal] = useState<BackgroundModalState>({
     visible: false,
   });
+  const [authorModal, setAuthorModal] = useState<AuthorModalState>({
+    visible: false,
+  });
 
   const [quoteForm, setQuoteForm] = useState<{
     quote: string;
     authorId: string;
   }>({ quote: "", authorId: "" });
   const [backgroundForm, setBackgroundForm] = useState<AdminBackgroundPayload>({
-    title: "",
-    imageUrl: "",
-    thumbnailUrl: "",
-    dominantColor: "",
+    filename: "",
+    contentType: "image/jpeg",
+  });
+  const [selectedImage, setSelectedImage] = useState<LocalImageAsset | null>(
+    null
+  );
+  const [authorForm, setAuthorForm] = useState<AdminAuthorPayload>({
+    name: "",
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -82,14 +109,24 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
   const loadAuthors = useCallback(async () => {
     setLoadingAuthors(true);
     try {
-      const response = await getAuthors();
-      setAuthors(response);
+      const response = await fetchAdminAuthors(adminSecret);
+      if (response.length) {
+        setAuthors(response);
+      } else {
+        const fallback = await getAuthors();
+        setAuthors(fallback);
+      }
     } catch (error) {
-      Alert.alert("שגיאה", "טעינת המחברים נכשלה. נסה שוב מאוחר יותר.");
+      try {
+        const fallback = await getAuthors();
+        setAuthors(fallback);
+      } catch (innerError) {
+        Alert.alert("שגיאה", "טעינת המחברים נכשלה. נסה שוב מאוחר יותר.");
+      }
     } finally {
       setLoadingAuthors(false);
     }
-  }, []);
+  }, [adminSecret]);
 
   const loadQuotes = useCallback(async () => {
     setLoadingQuotes(true);
@@ -129,11 +166,14 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const resetBackgroundForm = () => {
     setBackgroundForm({
-      title: "",
-      imageUrl: "",
-      thumbnailUrl: "",
-      dominantColor: "",
+      filename: "",
+      contentType: "image/jpeg",
     });
+    setSelectedImage(null);
+  };
+
+  const resetAuthorForm = () => {
+    setAuthorForm({ name: "" });
   };
 
   const openCreateQuote = () => {
@@ -153,23 +193,122 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const openEditBackground = (background: Background) => {
     setBackgroundForm({
-      title: background.title ?? "",
-      imageUrl: background.imageUrl,
-      thumbnailUrl: background.thumbnailUrl ?? "",
-      dominantColor: background.dominantColor ?? "",
+      filename: background.filename ?? "",
+      contentType: background.contentType ?? "image/jpeg",
     });
     setBackgroundModal({ visible: true, mode: "edit", background });
+    setSelectedImage(null);
+  };
+
+  const openCreateAuthor = () => {
+    resetAuthorForm();
+    setAuthorModal({ visible: true, mode: "create" });
+  };
+
+  const openEditAuthor = (author: Author) => {
+    setAuthorForm({ name: author.name });
+    setAuthorModal({ visible: true, mode: "edit", author });
   };
 
   const closeQuoteModal = () => setQuoteModal({ visible: false });
-  const closeBackgroundModal = () => setBackgroundModal({ visible: false });
+  const closeBackgroundModal = () => {
+    setBackgroundModal({ visible: false });
+    setSelectedImage(null);
+  };
+  const closeAuthorModal = () => setAuthorModal({ visible: false });
 
-  const authorsById = useMemo(() => {
-    return authors.reduce<Record<string, Author>>((acc, author) => {
-      acc[author._id] = author;
+  const quotesByAuthorCount = useMemo(() => {
+    return quotes.reduce<Record<string, number>>((acc, quote) => {
+      const authorId = quote.author?._id;
+      if (authorId) {
+        acc[authorId] = (acc[authorId] || 0) + 1;
+      }
       return acc;
     }, {});
+  }, [quotes]);
+
+  useEffect(() => {
+    if (!authors.length) {
+      setQuoteForm((prev) => ({ ...prev, authorId: "" }));
+      return;
+    }
+
+    setQuoteForm((prev) => {
+      if (prev.authorId && authors.some((author) => author._id === prev.authorId)) {
+        return prev;
+      }
+      return { ...prev, authorId: authors[0]._id };
+    });
   }, [authors]);
+
+  const inferExtensionFromUri = (uri: string): string => {
+    const match = uri.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+    return match ? match[1].toLowerCase() : "jpg";
+  };
+
+  const inferMimeTypeFromFilename = (filename: string): string => {
+    const ext = filename.split(".").pop()?.toLowerCase();
+    switch (ext) {
+      case "png":
+        return "image/png";
+      case "webp":
+        return "image/webp";
+      case "heic":
+      case "heif":
+        return "image/heic";
+      case "gif":
+        return "image/gif";
+      case "bmp":
+        return "image/bmp";
+      case "jpg":
+      case "jpeg":
+      default:
+        return "image/jpeg";
+    }
+  };
+
+  const handlePickImage = useCallback(async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (permission.status !== "granted") {
+      Alert.alert(
+        "אין הרשאה",
+        "כדי לבחור תמונות יש להעניק הרשאה לספריית התמונות."
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: false,
+      quality: 1,
+    });
+
+    if (result.canceled || !result.assets?.length) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    const fallbackName = asset.fileName
+      ? asset.fileName
+      : `background-${Date.now()}.${inferExtensionFromUri(asset.uri)}`;
+    const inferredType = asset.mimeType ?? inferMimeTypeFromFilename(fallbackName);
+
+    setSelectedImage({
+      uri: asset.uri,
+      name: fallbackName,
+      type: inferredType,
+    });
+
+    setBackgroundForm((prev) => ({
+      ...prev,
+      filename: prev.filename ? prev.filename : fallbackName,
+      contentType: inferredType,
+    }));
+  }, []);
+
+  const handleClearSelectedImage = () => {
+    setSelectedImage(null);
+  };
 
   const renderQuoteList = () => {
     if (loadingQuotes) {
@@ -184,33 +323,37 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
       <ScrollView
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        {quotes.map((quote) => (
-          <View key={quote._id} style={styles.itemCard}>
-            <View style={styles.itemHeader}>
-              <Text style={styles.itemAuthor}>
-                {quote.author?.name ?? "לא ידוע"}
-              </Text>
-              <View style={styles.itemActions}>
-                <Pressable
-                  onPress={() => openEditQuote(quote)}
-                  style={styles.actionButton}
-                >
-                  <Text style={styles.actionText}>עריכה</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => confirmDeleteQuote(quote)}
-                  style={[styles.actionButton, styles.actionDanger]}
-                >
-                  <Text style={[styles.actionText, styles.actionDangerText]}>
-                    מחיקה
-                  </Text>
-                </Pressable>
+        {quotes.map((quote) => {
+          const key = quote._id || `${quote.author?.name ?? "author"}_${quote.quote}`;
+          return (
+            <View key={key} style={styles.itemCard}>
+              <View style={styles.itemHeader}>
+                <Text style={styles.itemAuthor}>
+                  {quote.author?.name ?? "לא ידוע"}
+                </Text>
+                <View style={styles.itemActions}>
+                  <Pressable
+                    onPress={() => openEditQuote(quote)}
+                    style={styles.actionButton}
+                  >
+                    <Text style={styles.actionText}>עריכה</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => confirmDeleteQuote(quote)}
+                    style={[styles.actionButton, styles.actionDanger]}
+                  >
+                    <Text style={[styles.actionText, styles.actionDangerText]}>
+                      מחיקה
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
+              <Text style={styles.itemBody}>{quote.quote}</Text>
             </View>
-            <Text style={styles.itemBody}>{quote.quote}</Text>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
     );
   };
@@ -228,33 +371,100 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
       <ScrollView
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        {backgrounds.map((background) => (
-          <View key={background._id} style={styles.itemCard}>
-            <View style={styles.itemHeader}>
-              <Text style={styles.itemAuthor}>
-                {background.title ?? "רקע ללא שם"}
+        {backgrounds.map((background) => {
+          const displayName = getBackgroundDisplayName(background);
+          const key =
+            background.filename ??
+            background.imageUrl ??
+            background._id;
+          return (
+            <View key={key} style={styles.itemCard}>
+              <View style={styles.itemHeader}>
+                <Text style={styles.itemAuthor}>{displayName}</Text>
+                <View style={styles.itemActions}>
+                  <Pressable
+                    onPress={() => openEditBackground(background)}
+                    style={styles.actionButton}
+                  >
+                    <Text style={styles.actionText}>עריכה</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => confirmDeleteBackground(background)}
+                    style={[styles.actionButton, styles.actionDanger]}
+                  >
+                    <Text style={[styles.actionText, styles.actionDangerText]}>
+                      מחיקה
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+              <Text style={styles.itemBody}>
+                {background.filename ?? background.imageUrl ?? background._id}
               </Text>
-              <View style={styles.itemActions}>
-                <Pressable
-                  onPress={() => openEditBackground(background)}
-                  style={styles.actionButton}
-                >
-                  <Text style={styles.actionText}>עריכה</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => confirmDeleteBackground(background)}
-                  style={[styles.actionButton, styles.actionDanger]}
-                >
-                  <Text style={[styles.actionText, styles.actionDangerText]}>
-                    מחיקה
-                  </Text>
-                </Pressable>
+              {background.imageUrl ? (
+                <Text style={styles.itemMeta}>{background.imageUrl}</Text>
+              ) : null}
+            </View>
+          );
+        })}
+      </ScrollView>
+    );
+  };
+
+  const renderAuthorList = () => {
+    if (loadingAuthors) {
+      return <LoadingState label="טוען מחברים..." />;
+    }
+
+    if (!authors.length) {
+      return <EmptyState message="אין מחברים להצגה. הוסף מחבר חדש." />;
+    }
+
+    return (
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {authors.map((author) => {
+          const key = author._id || author.name;
+          const quoteCount = quotesByAuthorCount[author._id] ?? 0;
+          return (
+            <View key={key} style={styles.itemCard}>
+              <View style={styles.itemHeader}>
+                <Text style={styles.itemAuthor}>{author.name}</Text>
+                <View style={styles.itemActions}>
+                  <Pressable
+                    onPress={() => openEditAuthor(author)}
+                    style={styles.actionButton}
+                  >
+                    <Text style={styles.actionText}>עריכה</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => confirmDeleteAuthor(author)}
+                    style={[styles.actionButton, styles.actionDanger]}
+                  >
+                    <Text style={[styles.actionText, styles.actionDangerText]}>
+                      מחיקה
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+              <Text style={styles.itemBody}>מזהה: {author._id}</Text>
+              <View style={styles.authorMetaRow}>
+                <Text style={styles.authorMetaText}>
+                  {quoteCount === 0
+                    ? "אין ציטוטים מקושרים"
+                    : quoteCount === 1
+                    ? "ציטוט אחד מקושר"
+                    : `${quoteCount} ציטוטים מקושרים`}
+                </Text>
               </View>
             </View>
-            <Text style={styles.itemBody}>{background.imageUrl}</Text>
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
     );
   };
@@ -289,6 +499,25 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
             await loadBackgrounds();
           } catch (error) {
             Alert.alert("שגיאה", "לא ניתן למחוק את הרקע.");
+          }
+        },
+      },
+    ]);
+  };
+
+  const confirmDeleteAuthor = (author: Author) => {
+    Alert.alert("מחיקת מחבר", "האם אתה בטוח שברצונך למחוק את המחבר?", [
+      { text: "ביטול", style: "cancel" },
+      {
+        text: "מחק",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteAdminAuthor(adminSecret, author._id);
+            await loadAuthors();
+            await loadQuotes();
+          } catch (error) {
+            Alert.alert("שגיאה", "לא ניתן למחוק את המחבר.");
           }
         },
       },
@@ -331,18 +560,24 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const handleSubmitBackground = async () => {
-    if (!backgroundForm.imageUrl.trim()) {
-      Alert.alert("שגיאה", "יש להזין כתובת תמונה תקינה.");
+    if (!backgroundForm.filename.trim()) {
+      Alert.alert("שגיאה", "יש להזין שם קובץ תקין.");
       return;
     }
 
     setSubmitting(true);
     const payload: AdminBackgroundPayload = {
-      title: backgroundForm.title?.trim() || undefined,
-      imageUrl: backgroundForm.imageUrl.trim(),
-      thumbnailUrl: backgroundForm.thumbnailUrl?.trim() || undefined,
-      dominantColor: backgroundForm.dominantColor?.trim() || undefined,
+      filename: backgroundForm.filename.trim(),
+      contentType: backgroundForm.contentType?.trim() || undefined,
     };
+
+    const isCreateModal =
+      backgroundModal.visible && backgroundModal.mode === "create";
+    if (isCreateModal && !selectedImage) {
+      Alert.alert("שגיאה", "בחר תמונה מספריית התמונות לפני שמירה.");
+      setSubmitting(false);
+      return;
+    }
 
     try {
       if (
@@ -356,11 +591,23 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
           payload
         );
       } else {
-        await createAdminBackground(adminSecret, payload);
+        const uploadFile: AdminBackgroundFile | undefined = selectedImage
+          ? {
+              uri: selectedImage.uri,
+              name: backgroundForm.filename.trim(),
+              type:
+                backgroundForm.contentType?.trim() ||
+                selectedImage.type ||
+                "image/jpeg",
+            }
+          : undefined;
+
+        await createAdminBackground(adminSecret, payload, uploadFile);
       }
 
       await loadBackgrounds();
       closeBackgroundModal();
+      setSelectedImage(null);
     } catch (error) {
       Alert.alert("שגיאה", "שמירת הרקע נכשלה.");
     } finally {
@@ -368,64 +615,110 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  const renderTabToggle = () => (
-    <View style={styles.tabContainer}>
-      <Pressable
-        onPress={() => setActiveTab("quotes")}
-        style={[
-          styles.tabButton,
-          activeTab === "quotes" && styles.tabButtonActive,
-        ]}
-      >
-        <Text
-          style={[
-            styles.tabLabel,
-            activeTab === "quotes" && styles.tabLabelActive,
-          ]}
-        >
-          ציטוטים
-        </Text>
-      </Pressable>
-      <Pressable
-        onPress={() => setActiveTab("backgrounds")}
-        style={[
-          styles.tabButton,
-          activeTab === "backgrounds" && styles.tabButtonActive,
-        ]}
-      >
-        <Text
-          style={[
-            styles.tabLabel,
-            activeTab === "backgrounds" && styles.tabLabelActive,
-          ]}
-        >
-          רקעים
-        </Text>
-      </Pressable>
-    </View>
-  );
+  const handleSubmitAuthor = async () => {
+    if (!authorForm.name.trim()) {
+      Alert.alert("שגיאה", "יש להזין שם מחבר תקין.");
+      return;
+    }
+
+    setSubmitting(true);
+    const payload: AdminAuthorPayload = {
+      name: authorForm.name.trim(),
+    };
+
+    try {
+      if (authorModal.visible && authorModal.mode === "edit" && authorModal.author) {
+        await updateAdminAuthor(adminSecret, authorModal.author._id, payload);
+      } else {
+        await createAdminAuthor(adminSecret, payload);
+      }
+
+      await loadAuthors();
+      await loadQuotes();
+      closeAuthorModal();
+      resetAuthorForm();
+    } catch (error) {
+      Alert.alert("שגיאה", "שמירת המחבר נכשלה.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const renderTabToggle = () => {
+    const options: Array<{
+      label: string;
+      value: "quotes" | "backgrounds" | "authors";
+    }> = [
+      { label: "ציטוטים", value: "quotes" },
+      { label: "רקעים", value: "backgrounds" },
+      { label: "מחברים", value: "authors" },
+    ];
+
+    return (
+      <View style={styles.tabContainer}>
+        {options.map((option) => {
+          const isActive = activeTab === option.value;
+          return (
+            <Pressable
+              key={option.value}
+              onPress={() => setActiveTab(option.value)}
+              style={[styles.tabButton, isActive && styles.tabButtonActive]}
+            >
+              <Text
+                style={[styles.tabLabel, isActive && styles.tabLabelActive]}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    );
+  };
 
   const renderActions = () => {
     const canCreateQuote = authors.length > 0 && !loadingAuthors;
+
+    let primaryLabel = "";
+    let primaryHandler = () => {};
+    let primaryDisabled = false;
+    let refreshHandler = () => {};
+
+    switch (activeTab) {
+      case "quotes":
+        primaryLabel = "הוסף ציטוט";
+        primaryHandler = openCreateQuote;
+        primaryDisabled = !canCreateQuote;
+        refreshHandler = loadQuotes;
+        break;
+      case "backgrounds":
+        primaryLabel = "הוסף רקע";
+        primaryHandler = openCreateBackground;
+        refreshHandler = loadBackgrounds;
+        break;
+      case "authors":
+        primaryLabel = "הוסף מחבר";
+        primaryHandler = openCreateAuthor;
+        refreshHandler = loadAuthors;
+        break;
+      default:
+        primaryLabel = "הוסף";
+        primaryHandler = () => {};
+        refreshHandler = () => {};
+    }
+
     return (
       <View style={styles.actionsRow}>
         <PrimaryButton
-          label={activeTab === "quotes" ? "הוסף ציטוט" : "הוסף רקע"}
-          onPress={
-            activeTab === "quotes" ? openCreateQuote : openCreateBackground
-          }
-          disabled={activeTab === "quotes" ? !canCreateQuote : false}
+          label={primaryLabel}
+          onPress={primaryHandler}
+          disabled={primaryDisabled}
         />
         <PrimaryButton
           label="ריענון"
           variant="secondary"
-          onPress={() => {
-            if (activeTab === "quotes") {
-              loadQuotes();
-            } else {
-              loadBackgrounds();
-            }
-          }}
+          onPress={refreshHandler}
+          disabled={loadingAuthors && activeTab === "authors"}
         />
         <PrimaryButton
           label="חזרה"
@@ -441,12 +734,16 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
       <GlassCard>
         <Text style={styles.heading}>מסך ניהול</Text>
         <Text style={styles.subheading}>
-          נהל את התוכן של האפליקציה: ציטוטים ורקעים.
+          נהל את התוכן של האפליקציה: ציטוטים, רקעים ומחברים.
         </Text>
         {renderTabToggle()}
         {renderActions()}
         <View style={styles.listContainer}>
-          {activeTab === "quotes" ? renderQuoteList() : renderBackgroundList()}
+          {activeTab === "quotes"
+            ? renderQuoteList()
+            : activeTab === "backgrounds"
+            ? renderBackgroundList()
+            : renderAuthorList()}
         </View>
       </GlassCard>
 
@@ -546,56 +843,51 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
               style={styles.modalScroll}
               contentContainerStyle={styles.modalScrollContent}
             >
-              <Text style={styles.modalLabel}>שם הרקע</Text>
+              <Text style={styles.modalLabel}>שם הקובץ (S3)</Text>
               <TextInput
-                value={backgroundForm.title}
+                value={backgroundForm.filename}
                 onChangeText={(value) =>
-                  setBackgroundForm((prev) => ({ ...prev, title: value }))
+                  setBackgroundForm((prev) => ({ ...prev, filename: value }))
                 }
                 style={styles.input}
-                placeholder="שם תצוגה (אופציונלי)"
+                placeholder="folder/background.jpg"
                 placeholderTextColor="rgba(224, 225, 221, 0.4)"
               />
-              <Text style={styles.modalLabel}>כתובת תמונה</Text>
+              <Text style={styles.modalLabel}>סוג תוכן (Content-Type)</Text>
               <TextInput
-                value={backgroundForm.imageUrl}
+                value={backgroundForm.contentType}
                 onChangeText={(value) =>
-                  setBackgroundForm((prev) => ({ ...prev, imageUrl: value }))
+                  setBackgroundForm((prev) => ({ ...prev, contentType: value }))
                 }
                 style={styles.input}
-                placeholder="https://example.com/background.jpg"
+                placeholder="image/jpeg"
                 placeholderTextColor="rgba(224, 225, 221, 0.4)"
               />
-              <Text style={styles.modalLabel}>
-                כתובת תמונה ממוזערת (אופציונלי)
-              </Text>
-              <TextInput
-                value={backgroundForm.thumbnailUrl}
-                onChangeText={(value) =>
-                  setBackgroundForm((prev) => ({
-                    ...prev,
-                    thumbnailUrl: value,
-                  }))
-                }
-                style={styles.input}
-                placeholder="https://example.com/thumbnail.jpg"
-                placeholderTextColor="rgba(224, 225, 221, 0.4)"
-              />
-              <Text style={styles.modalLabel}>
-                צבע דומיננטי (HEX, אופציונלי)
-              </Text>
-              <TextInput
-                value={backgroundForm.dominantColor}
-                onChangeText={(value) =>
-                  setBackgroundForm((prev) => ({
-                    ...prev,
-                    dominantColor: value,
-                  }))
-                }
-                style={styles.input}
-                placeholder="#FFFFFF"
-                placeholderTextColor="rgba(224, 225, 221, 0.4)"
-              />
+              {backgroundModal.visible && backgroundModal.mode === "create" && (
+                <>
+                  <PrimaryButton
+                    label={selectedImage ? "בחר תמונה אחרת" : "בחירת תמונה מהספרייה"}
+                    onPress={handlePickImage}
+                    variant="secondary"
+                  />
+                  {selectedImage ? (
+                    <View style={styles.imagePreview}>
+                      <Image
+                        source={{ uri: selectedImage.uri }}
+                        style={styles.imagePreviewImage}
+                      />
+                      <Text style={styles.imagePreviewLabel}>
+                        {selectedImage.name}
+                      </Text>
+                      <PrimaryButton
+                        label="הסר תמונה"
+                        variant="secondary"
+                        onPress={handleClearSelectedImage}
+                      />
+                    </View>
+                  ) : null}
+                </>
+              )}
             </ScrollView>
             <PrimaryButton
               label="שמירה"
@@ -607,6 +899,49 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
               label="ביטול"
               variant="secondary"
               onPress={closeBackgroundModal}
+              disabled={submitting}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={authorModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeAuthorModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalHeading}>
+              {authorModal.visible && authorModal.mode === "edit"
+                ? "עריכת מחבר"
+                : "הוספת מחבר"}
+            </Text>
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.modalLabel}>שם המחבר</Text>
+              <TextInput
+                value={authorForm.name}
+                onChangeText={(value) => setAuthorForm({ name: value })}
+                style={styles.input}
+                placeholder='לדוגמה: הרמב"ם'
+                placeholderTextColor="rgba(224, 225, 221, 0.4)"
+              />
+            </ScrollView>
+            <PrimaryButton
+              label="שמירה"
+              onPress={handleSubmitAuthor}
+              loading={submitting}
+              disabled={submitting}
+            />
+            <PrimaryButton
+              label="ביטול"
+              variant="secondary"
+              onPress={closeAuthorModal}
               disabled={submitting}
             />
           </View>
@@ -655,7 +990,7 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
   actionsRow: {
-    flexDirection: "row",
+    flexDirection: "column",
     gap: spacing.sm,
     marginBottom: spacing.lg,
   },
@@ -721,6 +1056,12 @@ const styles = StyleSheet.create({
     textAlign: "right",
     lineHeight: 22,
   },
+  itemMeta: {
+    fontSize: 12,
+    color: "rgba(224, 225, 221, 0.65)",
+    textAlign: "right",
+    direction: "rtl",
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(8, 12, 20, 0.75)",
@@ -751,6 +1092,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     textAlign: "right",
+  },
+  imagePreview: {
+    gap: spacing.sm,
+    alignItems: "center",
+  },
+  imagePreviewImage: {
+    width: "100%",
+    height: 200,
+    borderRadius: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
+  imagePreviewLabel: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: "center",
   },
   input: {
     width: "100%",
@@ -792,5 +1149,17 @@ const styles = StyleSheet.create({
   authorOptionLabelSelected: {
     color: colors.accent,
     fontWeight: "600",
+  },
+  authorMetaRow: {
+    marginTop: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm,
+    borderRadius: spacing.md,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+  },
+  authorMetaText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    textAlign: "right",
   },
 });

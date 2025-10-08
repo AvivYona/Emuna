@@ -19,6 +19,7 @@
     "expo-blur": "~15.0.7",
     "expo-dev-client": "~6.0.13",
     "expo-file-system": "~17.0.1",
+    "expo-image-picker": "^17.0.8",
     "expo-media-library": "~18.2.0",
     "expo-notifications": "~0.32.12",
     "expo-status-bar": "~3.0.8",

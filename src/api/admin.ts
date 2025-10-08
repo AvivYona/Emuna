@@ -1,5 +1,5 @@
 import { BASE_URL } from "./client";
-import { Quote, Background } from "./types";
+import { Quote, Background, Author } from "./types";
 
 type AdminVerifyResponse = {
   valid: boolean;
@@ -11,10 +11,21 @@ export type AdminQuotePayload = {
 };
 
 export type AdminBackgroundPayload = {
-  title?: string;
-  imageUrl: string;
+  filename: string;
+  imageUrl?: string;
   dominantColor?: string;
   thumbnailUrl?: string;
+  contentType?: string;
+};
+
+export type AdminBackgroundFile = {
+  uri: string;
+  name: string;
+  type: string;
+};
+
+export type AdminAuthorPayload = {
+  name: string;
 };
 
 function withAdminHeaders(secret: string, init?: RequestInit): RequestInit {
@@ -125,8 +136,41 @@ export async function fetchAdminBackgrounds(
 
 export async function createAdminBackground(
   secret: string,
-  payload: AdminBackgroundPayload
+  payload: AdminBackgroundPayload,
+  file?: AdminBackgroundFile
 ): Promise<Background> {
+  if (file) {
+    const formData = new FormData();
+    formData.append(
+      "file",
+      {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      } as any
+    );
+
+    formData.append("filename", payload.filename);
+
+    if (payload.contentType) {
+      formData.append("contentType", payload.contentType);
+    }
+    if (payload.thumbnailUrl) {
+      formData.append("thumbnailUrl", payload.thumbnailUrl);
+    }
+    if (payload.dominantColor) {
+      formData.append("dominantColor", payload.dominantColor);
+    }
+    if (payload.imageUrl) {
+      formData.append("imageUrl", payload.imageUrl);
+    }
+
+    return adminRequest<Background>("/backgrounds", secret, {
+      method: "POST",
+      body: formData,
+    });
+  }
+
   return adminRequest<Background>("/backgrounds", secret, {
     method: "POST",
     headers: {
@@ -155,6 +199,44 @@ export async function deleteAdminBackground(
   id: string
 ): Promise<void> {
   await adminRequest(`/backgrounds/${id}`, secret, {
+    method: "DELETE",
+  });
+}
+
+export async function fetchAdminAuthors(secret: string): Promise<Author[]> {
+  const data = await adminRequest<Author[]>("/authors", secret);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function createAdminAuthor(
+  secret: string,
+  payload: AdminAuthorPayload
+): Promise<Author> {
+  return adminRequest<Author>("/authors", secret, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAdminAuthor(
+  secret: string,
+  id: string,
+  payload: AdminAuthorPayload
+): Promise<Author> {
+  return adminRequest<Author>(`/authors/${id}`, secret, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteAdminAuthor(secret: string, id: string): Promise<void> {
+  await adminRequest(`/authors/${id}`, secret, {
     method: "DELETE",
   });
 }

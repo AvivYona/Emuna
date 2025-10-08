@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { Background } from '../api/types';
+import { getBackgroundDisplayName } from '../api/backgrounds';
 import { colors, spacing } from '../theme';
 
 type Props = {
@@ -41,7 +42,7 @@ export const BackgroundCard: React.FC<Props> = ({
         imageStyle={styles.imageRadius}
       >
         <View style={styles.overlay}>
-          <Text style={styles.title}>{item.title ?? 'רקע מותאם'}</Text>
+          <Text style={styles.title}>{getBackgroundDisplayName(item)}</Text>
           {selected ? <Text style={styles.selectedText}>נבחר</Text> : null}
         </View>
         {loading ? (

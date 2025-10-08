@@ -3,10 +3,10 @@ import { Background } from "./types";
 import { fallbackBackgrounds } from "../utils/fallbackData";
 
 type BackgroundApiRecordBase = {
-  title?: string;
   filename?: string;
   thumbnailUrl?: string;
   dominantColor?: string;
+  contentType?: string;
 };
 
 type BinaryBackgroundApiRecord = BackgroundApiRecordBase & {
@@ -26,11 +26,7 @@ type BackgroundApiRecord =
 
 const DEFAULT_CONTENT_TYPE = "image/jpeg";
 
-function buildTitle(record: BackgroundApiRecord): string | undefined {
-  if (record.title) {
-    return record.title;
-  }
-
+function buildDisplayName(record: BackgroundApiRecord): string | undefined {
   if (!record.filename) {
     return undefined;
   }
@@ -62,10 +58,12 @@ function mapBackground(record: BackgroundApiRecord): Background | null {
 
     return {
       _id,
-      title: buildTitle(record),
       imageUrl,
+      filename: record.filename,
+      contentType: record.contentType,
       thumbnailUrl,
       dominantColor: record.dominantColor,
+      displayName: buildDisplayName(record),
     };
   }
 
@@ -81,10 +79,12 @@ function mapBackground(record: BackgroundApiRecord): Background | null {
 
     return {
       _id: id,
-      title: buildTitle(record),
       imageUrl,
+      filename: record.filename ?? record.id,
+      contentType: record.contentType,
       thumbnailUrl,
       dominantColor: record.dominantColor,
+      displayName: buildDisplayName(record),
     };
   }
 
@@ -116,4 +116,21 @@ export async function getBackgrounds(): Promise<Background[]> {
     console.warn('Error fetching backgrounds, using fallback data', error);
     return fallbackBackgrounds;
   }
+}
+
+export function getBackgroundDisplayName(background: Background): string {
+  if (background.displayName && background.displayName.trim().length > 0) {
+    return background.displayName;
+  }
+
+  if (background.filename) {
+    const withoutExtension = background.filename.replace(/\.[^/.]+$/, "");
+    const normalized = withoutExtension.replace(/[-_]+/g, " ").trim();
+    if (normalized.length > 0) {
+      return normalized;
+    }
+    return background.filename;
+  }
+
+  return "רקע מותאם";
 }

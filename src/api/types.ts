@@ -11,10 +11,12 @@ export interface Quote {
 
 export interface Background {
   _id: string;
-  title?: string;
   imageUrl: string;
+  filename?: string;
+  contentType?: string;
   thumbnailUrl?: string;
   dominantColor?: string;
+  displayName?: string;
 }
 
 export interface ApiResponse<T> {

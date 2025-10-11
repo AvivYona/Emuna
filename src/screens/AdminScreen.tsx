@@ -234,7 +234,10 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
     }
 
     setQuoteForm((prev) => {
-      if (prev.authorId && authors.some((author) => author._id === prev.authorId)) {
+      if (
+        prev.authorId &&
+        authors.some((author) => author._id === prev.authorId)
+      ) {
         return prev;
       }
       return { ...prev, authorId: authors[0]._id };
@@ -291,7 +294,8 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
     const fallbackName = asset.fileName
       ? asset.fileName
       : `background-${Date.now()}.${inferExtensionFromUri(asset.uri)}`;
-    const inferredType = asset.mimeType ?? inferMimeTypeFromFilename(fallbackName);
+    const inferredType =
+      asset.mimeType ?? inferMimeTypeFromFilename(fallbackName);
 
     setSelectedImage({
       uri: asset.uri,
@@ -326,7 +330,8 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
         showsVerticalScrollIndicator={false}
       >
         {quotes.map((quote) => {
-          const key = quote._id || `${quote.author?.name ?? "author"}_${quote.quote}`;
+          const key =
+            quote._id || `${quote.author?.name ?? "author"}_${quote.quote}`;
           return (
             <View key={key} style={styles.itemCard}>
               <View style={styles.itemHeader}>
@@ -376,9 +381,7 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
         {backgrounds.map((background) => {
           const displayName = getBackgroundDisplayName(background);
           const key =
-            background.filename ??
-            background.imageUrl ??
-            background._id;
+            background.filename ?? background.imageUrl ?? background._id;
           return (
             <View key={key} style={styles.itemCard}>
               <View style={styles.itemHeader}>
@@ -627,7 +630,11 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
     };
 
     try {
-      if (authorModal.visible && authorModal.mode === "edit" && authorModal.author) {
+      if (
+        authorModal.visible &&
+        authorModal.mode === "edit" &&
+        authorModal.author
+      ) {
         await updateAdminAuthor(adminSecret, authorModal.author._id, payload);
       } else {
         await createAdminAuthor(adminSecret, payload);
@@ -866,7 +873,9 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
               {backgroundModal.visible && backgroundModal.mode === "create" && (
                 <>
                   <PrimaryButton
-                    label={selectedImage ? "בחר תמונה אחרת" : "בחירת תמונה מהספרייה"}
+                    label={
+                      selectedImage ? "בחר תמונה אחרת" : "בחירת תמונה מהספרייה"
+                    }
                     onPress={handlePickImage}
                     variant="secondary"
                   />

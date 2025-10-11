@@ -11,7 +11,7 @@ type Props = ViewProps & {
 export const GlassCard: React.FC<Props> = ({ intensity = 50, style, children, ...rest }) => {
   return (
     <View style={styles.wrapper} {...rest}>
-      <BlurView intensity={intensity} tint="dark" style={[styles.blur, style]}>
+      <BlurView intensity={intensity} tint="light" style={[styles.blur, style]}>
         <View style={styles.inner}>{children}</View>
       </BlurView>
     </View>
@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
     borderColor: palette.glassBorder,
     padding: spacing.lg,
     borderRadius: spacing.lg,
-    backgroundColor: 'rgba(13, 27, 42, 0.35)',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
     direction: 'rtl',
     writingDirection: 'rtl',
   },

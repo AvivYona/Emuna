@@ -55,7 +55,7 @@ export const AdminLoginScreen: React.FC<Props> = ({ navigation }) => {
           value={passphrase}
           onChangeText={setPassphrase}
           placeholder="סיסמה סודית"
-          placeholderTextColor="rgba(224, 225, 221, 0.4)"
+          placeholderTextColor="rgba(58, 32, 22, 0.4)"
           secureTextEntry
           editable={!submitting}
           style={styles.input}
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     fontSize: 18,
     color: colors.textPrimary,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: colors.card,
     textAlign: 'right',
     marginBottom: spacing.sm,
   },

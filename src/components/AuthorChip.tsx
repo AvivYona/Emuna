@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   label: {
-    color: colors.textSecondary,
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '500',
   },

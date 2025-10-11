@@ -175,8 +175,8 @@ const styles = StyleSheet.create({
   pickerWrapper: {
     borderRadius: spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderColor: colors.divider,
+    backgroundColor: colors.card,
     alignItems: 'center',
     paddingVertical: spacing.sm,
     marginBottom: spacing.lg,
@@ -184,7 +184,8 @@ const styles = StyleSheet.create({
   timeButton: {
     borderRadius: spacing.lg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: colors.divider,
+    backgroundColor: colors.card,
     padding: spacing.lg,
     alignItems: 'center',
     marginBottom: spacing.lg,

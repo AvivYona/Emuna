@@ -227,11 +227,6 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({ navigation
           <Text style={styles.summaryText}>
             מחברים אהובים: {favoriteAuthors.length ? favoriteAuthors.length : 'לא נבחרו'}
           </Text>
-          {selectedBackground ? (
-            <Text style={styles.summaryText}>
-              יישום הרקע: {selectedBackgroundTarget === 'lock' ? 'מסך הנעילה' : 'מסך הבית'}
-            </Text>
-          ) : null}
           <PrimaryButton
             label="עריכת זמן ההתראה"
             onPress={handleEditSchedule}
@@ -407,7 +402,7 @@ const styles = StyleSheet.create({
   summaryBox: {
     borderRadius: spacing.lg,
     padding: spacing.md,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: colors.card,
     marginBottom: spacing.md,
   },
   summaryTitle: {
@@ -427,7 +422,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(8, 12, 20, 0.72)',
+    backgroundColor: 'rgba(58, 32, 22, 0.6)',
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
   },
@@ -462,7 +457,7 @@ const styles = StyleSheet.create({
   },
   modalImageOverlay: {
     height: 80,
-    backgroundColor: 'rgba(8, 12, 20, 0.35)',
+    backgroundColor: 'rgba(58, 32, 22, 0.45)',
   },
   toggleGroup: {
     flexDirection: 'row',
@@ -477,11 +472,11 @@ const styles = StyleSheet.create({
     borderColor: colors.divider,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    backgroundColor: colors.accentSoft,
   },
   toggleOptionActive: {
     borderColor: colors.accent,
-    backgroundColor: 'rgba(244, 196, 48, 0.2)',
+    backgroundColor: 'rgba(140, 74, 53, 0.22)',
   },
   toggleLabel: {
     fontSize: 16,
@@ -492,7 +487,7 @@ const styles = StyleSheet.create({
     color: colors.accent,
   },
   instructions: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: colors.card,
     borderRadius: spacing.lg,
     padding: spacing.md,
     gap: spacing.xs,

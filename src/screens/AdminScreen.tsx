@@ -780,7 +780,7 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
                 }
                 style={[styles.input, styles.textarea]}
                 placeholder="כתוב כאן את הציטוט..."
-                placeholderTextColor="rgba(224, 225, 221, 0.4)"
+                placeholderTextColor="rgba(58, 32, 22, 0.4)"
               />
               <Text style={styles.modalLabel}>בחר מחבר</Text>
               <View style={styles.authorList}>
@@ -858,7 +858,7 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
                 }
                 style={styles.input}
                 placeholder="folder/background.jpg"
-                placeholderTextColor="rgba(224, 225, 221, 0.4)"
+                placeholderTextColor="rgba(58, 32, 22, 0.4)"
               />
               <Text style={styles.modalLabel}>סוג תוכן (Content-Type)</Text>
               <TextInput
@@ -868,7 +868,7 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
                 }
                 style={styles.input}
                 placeholder="image/jpeg"
-                placeholderTextColor="rgba(224, 225, 221, 0.4)"
+                placeholderTextColor="rgba(58, 32, 22, 0.4)"
               />
               {backgroundModal.visible && backgroundModal.mode === "create" && (
                 <>
@@ -938,7 +938,7 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
                 onChangeText={(value) => setAuthorForm({ name: value })}
                 style={styles.input}
                 placeholder='לדוגמה: הרמב"ם'
-                placeholderTextColor="rgba(224, 225, 221, 0.4)"
+                placeholderTextColor="rgba(58, 32, 22, 0.4)"
               />
             </ScrollView>
             <PrimaryButton
@@ -977,7 +977,7 @@ const styles = StyleSheet.create({
   tabContainer: {
     flexDirection: "row",
     borderRadius: spacing.lg,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    backgroundColor: colors.card,
     padding: spacing.xs,
     marginBottom: spacing.md,
   },
@@ -1005,9 +1005,9 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     borderRadius: spacing.lg,
-    backgroundColor: "rgba(0, 0, 0, 0.25)",
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: colors.divider,
     padding: spacing.md,
     minHeight: 220,
   },
@@ -1020,11 +1020,11 @@ const styles = StyleSheet.create({
   },
   itemCard: {
     borderRadius: spacing.lg,
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    backgroundColor: colors.card,
     padding: spacing.md,
     gap: spacing.xs,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
+    borderColor: colors.divider,
   },
   itemHeader: {
     flexDirection: "row",
@@ -1047,14 +1047,14 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
     borderRadius: spacing.md,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    backgroundColor: colors.accentSoft,
   },
   actionDanger: {
     backgroundColor: "rgba(201, 76, 76, 0.15)",
   },
   actionText: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: colors.textPrimary,
   },
   actionDangerText: {
     color: colors.danger,
@@ -1067,13 +1067,13 @@ const styles = StyleSheet.create({
   },
   itemMeta: {
     fontSize: 12,
-    color: "rgba(224, 225, 221, 0.65)",
+    color: "rgba(58, 32, 22, 0.55)",
     textAlign: "right",
     direction: "rtl",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(8, 12, 20, 0.75)",
+    backgroundColor: "rgba(58, 32, 22, 0.65)",
     justifyContent: "center",
     paddingHorizontal: spacing.lg,
   },
@@ -1127,7 +1127,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     fontSize: 16,
     color: colors.textPrimary,
-    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    backgroundColor: colors.card,
     textAlign: "right",
   },
   textarea: {
@@ -1143,8 +1143,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     borderRadius: spacing.lg,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.08)",
-    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderColor: colors.divider,
+    backgroundColor: colors.card,
   },
   authorOptionSelected: {
     borderColor: colors.accent,
@@ -1164,7 +1164,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm,
     borderRadius: spacing.md,
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    backgroundColor: colors.accentSoft,
   },
   authorMetaText: {
     fontSize: 13,

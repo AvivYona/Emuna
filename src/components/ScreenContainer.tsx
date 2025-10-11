@@ -11,7 +11,7 @@ export const ScreenContainer: React.FC<Props> = ({ children, withScroll = true, 
   const content = withScroll ? <ScrollView contentContainerStyle={styles.scroll}>{children}</ScrollView> : children;
   return (
     <View style={[styles.root, style]} {...rest}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
       <KeyboardAvoidingView
         style={styles.avoiding}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

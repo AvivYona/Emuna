@@ -23,7 +23,7 @@ export default function App() {
         importance: Notifications.AndroidImportance.HIGH,
         sound: 'default',
         vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#F4C430',
+        lightColor: colors.accent,
       }).catch((error) => console.warn('כישלון בקביעת ערוץ התראות', error));
     }
   }, []);

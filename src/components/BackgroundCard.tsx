@@ -1,14 +1,6 @@
 import React from 'react';
-import {
-  ActivityIndicator,
-  ImageBackground,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, ImageBackground, Pressable, StyleSheet, View } from 'react-native';
 import { Background } from '../api/types';
-import { getBackgroundDisplayName } from '../api/backgrounds';
 import { colors, spacing } from '../theme';
 
 type Props = {
@@ -41,13 +33,10 @@ export const BackgroundCard: React.FC<Props> = ({
         style={styles.image}
         imageStyle={styles.imageRadius}
       >
-        <View style={styles.overlay}>
-          <Text style={styles.title}>{getBackgroundDisplayName(item)}</Text>
-          {selected ? <Text style={styles.selectedText}>נבחר</Text> : null}
-        </View>
+        <View style={styles.overlay} />
         {loading ? (
           <View style={styles.loadingOverlay}>
-            <ActivityIndicator size='large' color={colors.accent} />
+            <ActivityIndicator size='large' color={colors.background} />
           </View>
         ) : null}
       </ImageBackground>
@@ -63,7 +52,7 @@ const styles = StyleSheet.create({
     borderRadius: spacing.lg,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: colors.divider,
   },
   selected: {
     borderColor: colors.accent,
@@ -84,26 +73,15 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(13, 27, 42, 0.35)',
+    backgroundColor: 'rgba(58, 32, 22, 0.55)',
     padding: spacing.sm,
     justifyContent: 'space-between',
     direction: 'rtl',
     writingDirection: 'rtl',
   },
-  title: {
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'right',
-  },
-  selectedText: {
-    color: colors.accent,
-    fontWeight: '700',
-    textAlign: 'right',
-  },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(13, 27, 42, 0.55)',
+    backgroundColor: 'rgba(58, 32, 22, 0.35)',
     alignItems: 'center',
     justifyContent: 'center',
   },

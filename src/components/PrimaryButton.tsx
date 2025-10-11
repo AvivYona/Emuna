@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accent,
   },
   secondary: {
-    backgroundColor: 'transparent',
+    backgroundColor: colors.accentSoft,
   },
   disabled: {
     opacity: 0.6,

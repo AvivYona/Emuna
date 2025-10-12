@@ -45,6 +45,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({ navigation
     selectedBackgroundTarget,
     setSelectedBackground,
     wantsQuotes,
+    setWantsQuotes,
     favoriteAuthors,
     notificationTime,
     loaded,
@@ -199,12 +200,12 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({ navigation
     navigation.navigate('Authors');
   };
 
-  const handleEditQuoteSettings = () => {
-    navigation.navigate('Welcome');
-  };
-
   const handleEnableQuotes = () => {
     navigation.navigate('Welcome', { startAtSchedule: true, showPicker: true });
+  };
+
+  const handleDisableQuotes = () => {
+    setWantsQuotes(false);
   };
 
   useEffect(() => {
@@ -234,8 +235,8 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({ navigation
           />
           <PrimaryButton label="עריכת המחברים" onPress={handleEditAuthors} variant="secondary" />
           <PrimaryButton
-            label="שינוי העדפות הציטוטים"
-            onPress={handleEditQuoteSettings}
+            label="כיבוי ההתראות"
+            onPress={handleDisableQuotes}
             variant="secondary"
           />
         </View>

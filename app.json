@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.Emuna",
+      "bundleIdentifier": "com.avivyona.Emuna",
       "infoPlist": {
         "NSPhotoLibraryAddUsageDescription": "נדרש כדי לשמור רקעים מותאמים אישית לאלבום התמונות שלך.",
         "NSPhotoLibraryUsageDescription": "נדרש כדי לשמור ולעדכן רקעים מותאמים אישית."

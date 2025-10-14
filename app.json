@@ -14,10 +14,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.avivyona.Emuna",
+      "bundleIdentifier": "com.avivyona.emuna",
       "infoPlist": {
         "NSPhotoLibraryAddUsageDescription": "נדרש כדי לשמור רקעים מותאמים אישית לאלבום התמונות שלך.",
-        "NSPhotoLibraryUsageDescription": "נדרש כדי לשמור ולעדכן רקעים מותאמים אישית."
+        "NSPhotoLibraryUsageDescription": "נדרש כדי לשמור ולעדכן רקעים מותאמים אישית.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -31,6 +32,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "184a2778-506c-4c39-93f5-661d2c8629c2"
+      }
     }
   }
 }

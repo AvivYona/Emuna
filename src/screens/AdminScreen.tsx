@@ -30,7 +30,6 @@ import {
   updateAdminAuthor,
   deleteAdminAuthor,
   AdminQuotePayload,
-  AdminBackgroundPayload,
   AdminBackgroundFile,
   AdminAuthorPayload,
 } from "../api/admin";
@@ -41,6 +40,7 @@ import { LoadingState } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
 import { useFocusEffect } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
+import { BASE_URL } from "../api/client";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Admin">;
 
@@ -93,13 +93,10 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
     quote: string;
     authorId: string;
   }>({ quote: "", authorId: "" });
-  const [backgroundForm, setBackgroundForm] = useState<AdminBackgroundPayload>({
-    filename: "",
-    contentType: "image/jpeg",
-  });
   const [selectedImage, setSelectedImage] = useState<LocalImageAsset | null>(
     null
   );
+  const [backgroundPreviewUri, setBackgroundPreviewUri] = useState<string | null>(null);
   const [authorForm, setAuthorForm] = useState<AdminAuthorPayload>({
     name: "",
   });
@@ -164,14 +161,6 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
     setQuoteForm({ quote: "", authorId: authors[0]?._id ?? "" });
   };
 
-  const resetBackgroundForm = () => {
-    setBackgroundForm({
-      filename: "",
-      contentType: "image/jpeg",
-    });
-    setSelectedImage(null);
-  };
-
   const resetAuthorForm = () => {
     setAuthorForm({ name: "" });
   };
@@ -187,17 +176,17 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const openCreateBackground = () => {
-    resetBackgroundForm();
+    setSelectedImage(null);
+    setBackgroundPreviewUri(null);
     setBackgroundModal({ visible: true, mode: "create" });
   };
 
   const openEditBackground = (background: Background) => {
-    setBackgroundForm({
-      filename: background.filename ?? "",
-      contentType: background.contentType ?? "image/jpeg",
-    });
-    setBackgroundModal({ visible: true, mode: "edit", background });
     setSelectedImage(null);
+    const fileName = background.filename;
+    setBackgroundPreviewUri(null);
+    setBackgroundModal({ visible: true, mode: "edit", background });
+    loadBackgroundPreview(fileName);
   };
 
   const openCreateAuthor = () => {
@@ -214,6 +203,7 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
   const closeBackgroundModal = () => {
     setBackgroundModal({ visible: false });
     setSelectedImage(null);
+    setBackgroundPreviewUri(null);
   };
   const closeAuthorModal = () => setAuthorModal({ visible: false });
 
@@ -297,21 +287,38 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
     const inferredType =
       asset.mimeType ?? inferMimeTypeFromFilename(fallbackName);
 
+    setBackgroundPreviewUri(null);
     setSelectedImage({
       uri: asset.uri,
       name: fallbackName,
       type: inferredType,
     });
-
-    setBackgroundForm((prev) => ({
-      ...prev,
-      filename: prev.filename ? prev.filename : fallbackName,
-      contentType: inferredType,
-    }));
   }, []);
+
+  const loadBackgroundPreview = useCallback(
+    (fileName?: string) => {
+      if (!fileName) {
+        setBackgroundPreviewUri(null);
+        return;
+      }
+      const encoded = encodeURIComponent(fileName);
+      setBackgroundPreviewUri(`${BASE_URL}/backgrounds/${encoded}?ts=${Date.now()}`);
+    },
+    [],
+  );
 
   const handleClearSelectedImage = () => {
     setSelectedImage(null);
+    if (backgroundModal.visible && backgroundModal.mode === "edit") {
+      const fileName = backgroundModal.background?.filename;
+      if (fileName) {
+        loadBackgroundPreview(fileName);
+      } else {
+        setBackgroundPreviewUri(null);
+      }
+    } else {
+      setBackgroundPreviewUri(null);
+    }
   };
 
   const renderQuoteList = () => {
@@ -498,7 +505,7 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
         style: "destructive",
         onPress: async () => {
           try {
-            await deleteAdminBackground(adminSecret, background._id);
+            await deleteAdminBackground(adminSecret, background.filename);
             await loadBackgrounds();
           } catch (error) {
             Alert.alert("שגיאה", "לא ניתן למחוק את הרקע.");
@@ -563,55 +570,41 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const handleSubmitBackground = async () => {
-    if (!backgroundForm.filename.trim()) {
-      Alert.alert("שגיאה", "יש להזין שם קובץ תקין.");
-      return;
-    }
-
-    setSubmitting(true);
-    const payload: AdminBackgroundPayload = {
-      filename: backgroundForm.filename.trim(),
-      contentType: backgroundForm.contentType?.trim() || undefined,
-    };
-
     const isCreateModal =
       backgroundModal.visible && backgroundModal.mode === "create";
-    if (isCreateModal && !selectedImage) {
-      Alert.alert("שגיאה", "בחר תמונה מספריית התמונות לפני שמירה.");
-      setSubmitting(false);
+    const isEditModal =
+      backgroundModal.visible && backgroundModal.mode === "edit";
+
+    if (!selectedImage) {
+      const message = isCreateModal
+        ? "בחר תמונה מספריית התמונות לפני שמירה."
+        : "בחר תמונה חדשה לפני שמירה.";
+      Alert.alert("שגיאה", message);
       return;
     }
 
+    const uploadFile: AdminBackgroundFile = {
+      uri: selectedImage.uri,
+      name: selectedImage.name,
+      type: selectedImage.type,
+    };
+
+    setSubmitting(true);
     try {
-      if (
-        backgroundModal.visible &&
-        backgroundModal.mode === "edit" &&
-        backgroundModal.background
-      ) {
+      if (isEditModal && backgroundModal.background) {
         await updateAdminBackground(
           adminSecret,
           backgroundModal.background._id,
-          payload
+          uploadFile
         );
       } else {
-        const uploadFile: AdminBackgroundFile | undefined = selectedImage
-          ? {
-              uri: selectedImage.uri,
-              name: backgroundForm.filename.trim(),
-              type:
-                backgroundForm.contentType?.trim() ||
-                selectedImage.type ||
-                "image/jpeg",
-            }
-          : undefined;
-
-        await createAdminBackground(adminSecret, payload, uploadFile);
+        await createAdminBackground(adminSecret, uploadFile);
       }
 
       await loadBackgrounds();
       closeBackgroundModal();
-      setSelectedImage(null);
     } catch (error) {
+      console.warn("Failed to save background", error);
       Alert.alert("שגיאה", "שמירת הרקע נכשלה.");
     } finally {
       setSubmitting(false);
@@ -850,59 +843,70 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
               style={styles.modalScroll}
               contentContainerStyle={styles.modalScrollContent}
             >
-              <Text style={styles.modalLabel}>שם הקובץ (S3)</Text>
-              <TextInput
-                value={backgroundForm.filename}
-                onChangeText={(value) =>
-                  setBackgroundForm((prev) => ({ ...prev, filename: value }))
+              <PrimaryButton
+                label={
+                  selectedImage
+                    ? "בחר תמונה אחרת"
+                    : backgroundModal.visible && backgroundModal.mode === "edit"
+                    ? "בחר תמונה חדשה"
+                    : "בחירת תמונה מהספרייה"
                 }
-                style={styles.input}
-                placeholder="folder/background.jpg"
-                placeholderTextColor="rgba(58, 32, 22, 0.4)"
+                onPress={handlePickImage}
+                variant="secondary"
               />
-              <Text style={styles.modalLabel}>סוג תוכן (Content-Type)</Text>
-              <TextInput
-                value={backgroundForm.contentType}
-                onChangeText={(value) =>
-                  setBackgroundForm((prev) => ({ ...prev, contentType: value }))
+              {(() => {
+                const fallbackPreviewUri =
+                  backgroundPreviewUri ??
+                  backgroundModal.background?.imageUrl ??
+                  backgroundModal.background?.thumbnailUrl;
+
+                const previewUri = selectedImage?.uri ?? fallbackPreviewUri;
+
+                if (!previewUri) {
+                  return null;
                 }
-                style={styles.input}
-                placeholder="image/jpeg"
-                placeholderTextColor="rgba(58, 32, 22, 0.4)"
-              />
-              {backgroundModal.visible && backgroundModal.mode === "create" && (
-                <>
-                  <PrimaryButton
-                    label={
-                      selectedImage ? "בחר תמונה אחרת" : "בחירת תמונה מהספרייה"
-                    }
-                    onPress={handlePickImage}
-                    variant="secondary"
-                  />
-                  {selectedImage ? (
-                    <View style={styles.imagePreview}>
-                      <Image
-                        source={{ uri: selectedImage.uri }}
-                        style={styles.imagePreviewImage}
-                      />
+
+                const previewSource = selectedImage
+                  ? { uri: previewUri }
+                  : {
+                      uri: previewUri,
+                      headers: { "x-api-password": adminSecret },
+                    };
+
+                const previewLabel =
+                  selectedImage?.name ??
+                  backgroundModal.background?.filename ??
+                  backgroundModal.background?._id;
+
+                return (
+                  <View style={styles.imagePreview}>
+                    <Image
+                      key={previewUri}
+                      source={previewSource}
+                      style={styles.imagePreviewImage}
+                      resizeMode="cover"
+                    />
+                    {previewLabel ? (
                       <Text style={styles.imagePreviewLabel}>
-                        {selectedImage.name}
+                        {previewLabel}
                       </Text>
+                    ) : null}
+                    {selectedImage ? (
                       <PrimaryButton
                         label="הסר תמונה"
                         variant="secondary"
                         onPress={handleClearSelectedImage}
                       />
-                    </View>
-                  ) : null}
-                </>
-              )}
+                    ) : null}
+                  </View>
+                );
+              })()}
             </ScrollView>
             <PrimaryButton
               label="שמירה"
               onPress={handleSubmitBackground}
               loading={submitting}
-              disabled={submitting}
+              disabled={submitting || !selectedImage}
             />
             <PrimaryButton
               label="ביטול"

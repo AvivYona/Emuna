@@ -1,9 +1,12 @@
-import { fetchJson } from "./client";
+import { BASE_URL, fetchJson } from "./client";
 import { Background } from "./types";
 import { fallbackBackgrounds } from "../utils/fallbackData";
 
 type BackgroundApiRecordBase = {
+  id?: string;
+  _id?: string;
   filename?: string;
+  size?: number;
   thumbnailUrl?: string;
   dominantColor?: string;
   contentType?: string;
@@ -87,6 +90,27 @@ function mapBackground(record: BackgroundApiRecord): Background | null {
       displayName: buildDisplayName(record),
     };
   }
+
+  const identifier = record._id ?? record.id ?? record.filename;
+  const filename = record.filename;
+
+  if (!identifier || !filename) {
+    return null;
+  }
+
+  const versionToken = record.size ? `?v=${record.size}` : '';
+  const imageUrl = `${BASE_URL}/backgrounds/${encodeURIComponent(filename)}${versionToken}`;
+  const thumbnailUrl = record.thumbnailUrl ?? imageUrl;
+
+  return {
+    _id: identifier,
+    imageUrl,
+    filename,
+    contentType: record.contentType,
+    thumbnailUrl,
+    dominantColor: record.dominantColor,
+    displayName: buildDisplayName(record),
+  };
 
   return null;
 }

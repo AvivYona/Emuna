@@ -10,18 +10,10 @@ export type AdminQuotePayload = {
   authorId: string;
 };
 
-export type AdminBackgroundPayload = {
-  filename: string;
-  imageUrl?: string;
-  dominantColor?: string;
-  thumbnailUrl?: string;
-  contentType?: string;
-};
-
 export type AdminBackgroundFile = {
   uri: string;
   name: string;
-  type: string;
+  type?: string;
 };
 
 export type AdminAuthorPayload = {
@@ -136,69 +128,52 @@ export async function fetchAdminBackgrounds(
 
 export async function createAdminBackground(
   secret: string,
-  payload: AdminBackgroundPayload,
-  file?: AdminBackgroundFile
+  file: AdminBackgroundFile
 ): Promise<Background> {
-  if (file) {
-    const formData = new FormData();
-    formData.append(
-      "file",
-      {
-        uri: file.uri,
-        name: file.name,
-        type: file.type,
-      } as any
-    );
-
-    formData.append("filename", payload.filename);
-
-    if (payload.contentType) {
-      formData.append("contentType", payload.contentType);
-    }
-    if (payload.thumbnailUrl) {
-      formData.append("thumbnailUrl", payload.thumbnailUrl);
-    }
-    if (payload.dominantColor) {
-      formData.append("dominantColor", payload.dominantColor);
-    }
-    if (payload.imageUrl) {
-      formData.append("imageUrl", payload.imageUrl);
-    }
-
-    return adminRequest<Background>("/backgrounds", secret, {
-      method: "POST",
-      body: formData,
-    });
+  if (!file) {
+    throw new Error("Background file is required");
   }
+
+  const formData = new FormData();
+  formData.append("image", {
+    uri: file.uri,
+    name: file.name,
+    type: file.type ?? "image/jpeg",
+  } as any);
 
   return adminRequest<Background>("/backgrounds", secret, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+    body: formData,
   });
 }
 
 export async function updateAdminBackground(
   secret: string,
   id: string,
-  payload: AdminBackgroundPayload
+  file: AdminBackgroundFile
 ): Promise<Background> {
+  if (!file) {
+    throw new Error("Background file is required");
+  }
+
+  const formData = new FormData();
+  formData.append("image", {
+    uri: file.uri,
+    name: file.name,
+    type: file.type ?? "image/jpeg",
+  } as any);
+
   return adminRequest<Background>(`/backgrounds/${id}`, secret, {
     method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+    body: formData,
   });
 }
 
 export async function deleteAdminBackground(
   secret: string,
-  id: string
+  fileName: string
 ): Promise<void> {
-  await adminRequest(`/backgrounds/${id}`, secret, {
+  await adminRequest(`/backgrounds/${fileName}`, secret, {
     method: "DELETE",
   });
 }
@@ -235,7 +210,10 @@ export async function updateAdminAuthor(
   });
 }
 
-export async function deleteAdminAuthor(secret: string, id: string): Promise<void> {
+export async function deleteAdminAuthor(
+  secret: string,
+  id: string
+): Promise<void> {
   await adminRequest(`/authors/${id}`, secret, {
     method: "DELETE",
   });

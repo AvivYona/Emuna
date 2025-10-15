@@ -271,7 +271,6 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({ navigation
           </Pressable>
           {previewBackground ? (
             <View style={styles.modalCard}>
-              <Text style={styles.modalTitle}>{getBackgroundDisplayName(previewBackground)}</Text>
               <ImageBackground
                 source={{ uri: previewBackground.imageUrl }}
                 style={styles.modalImage}
@@ -279,34 +278,13 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({ navigation
               >
                 <View style={styles.modalImageOverlay} />
               </ImageBackground>
-              <View style={styles.toggleGroup}>
-                {TARGET_OPTIONS.map((option) => {
-                  const active = target === option.value;
-                  return (
-                    <Pressable
-                      key={option.value}
-                      style={[styles.toggleOption, active ? styles.toggleOptionActive : null]}
-                      onPress={() => setTarget(option.value)}
-                      disabled={isProcessing}
-                    >
-                      <Text
-                        style={[styles.toggleLabel, active ? styles.toggleLabelActive : null]}
-                      >
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
               {isIOS ? (
                 <View style={styles.instructions}>
                   <Text style={styles.instructionsTitle}>איך להגדיר את הרקע</Text>
                   <Text style={styles.instructionsItem}>1. פתחו את אפליקציית התמונות.</Text>
                   <Text style={styles.instructionsItem}>2. בחרו את הרקע ששמרתם הרגע.</Text>
                   <Text style={styles.instructionsItem}>3. הקישו על שיתוף › השתמש כרקע.</Text>
-                  <Text style={styles.instructionsItem}>
-                    4. אשרו למסך המתאים ({target === 'lock' ? 'מסך הנעילה' : 'מסך הבית'}).
-                  </Text>
+                  <Text style={styles.instructionsItem}>4. אשרו למסך המתאים.</Text>
                 </View>
               ) : null}
               <PrimaryButton
@@ -459,33 +437,6 @@ const styles = StyleSheet.create({
   modalImageOverlay: {
     height: 80,
     backgroundColor: 'rgba(58, 32, 22, 0.45)',
-  },
-  toggleGroup: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    justifyContent: 'space-between',
-  },
-  toggleOption: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    borderRadius: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.divider,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accentSoft,
-  },
-  toggleOptionActive: {
-    borderColor: colors.accent,
-    backgroundColor: 'rgba(140, 74, 53, 0.22)',
-  },
-  toggleLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  toggleLabelActive: {
-    color: colors.accent,
   },
   instructions: {
     backgroundColor: colors.card,

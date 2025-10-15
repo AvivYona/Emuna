@@ -33,7 +33,7 @@ export const BackgroundCard: React.FC<Props> = ({
         style={styles.image}
         imageStyle={styles.imageRadius}
       >
-        <View style={styles.overlay} />
+        {selected ? <View style={styles.selectedOverlay} /> : null}
         {loading ? (
           <View style={styles.loadingOverlay}>
             <ActivityIndicator size='large' color={colors.background} />
@@ -71,13 +71,9 @@ const styles = StyleSheet.create({
   imageRadius: {
     borderRadius: spacing.lg,
   },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(58, 32, 22, 0.55)',
-    padding: spacing.sm,
-    justifyContent: 'space-between',
-    direction: 'rtl',
-    writingDirection: 'rtl',
+  selectedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(58, 32, 22, 0.35)',
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

@@ -216,7 +216,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({ navigation
   }, [loaded, wantsQuotes, navigation]);
 
   const renderHeader = () => (
-    <GlassCard>
+    <GlassCard style={styles.headerCard}>
       <Text style={styles.heading}>ספריית הרקעים</Text>
       <Text style={styles.subtitle}>החלק ובחר רקע שמעצים אותך. ההגדרות שלך נשמרות אוטומטית.</Text>
       {wantsQuotes ? (
@@ -377,6 +377,9 @@ const styles = StyleSheet.create({
   },
   row: {
     justifyContent: 'space-between',
+  },
+  headerCard: {
+    marginTop: spacing.md,
   },
   summaryBox: {
     borderRadius: spacing.lg,

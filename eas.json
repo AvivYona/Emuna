@@ -6,9 +6,11 @@
   "build": {
     "development": {
       "developmentClient": true,
+      "autoIncrement": true,
       "distribution": "internal"
     },
     "preview": {
+      "autoIncrement": true,
       "distribution": "internal"
     },
     "production": {

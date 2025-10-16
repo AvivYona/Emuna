@@ -1,4 +1,5 @@
-export const BASE_URL = "https://daileyquotes.onrender.com";
+export const BASE_URL =
+  "https://z6d60z8at8.execute-api.eu-north-1.amazonaws.com";
 
 async function parseJson<T>(response: Response): Promise<T> {
   const text = await response.text();

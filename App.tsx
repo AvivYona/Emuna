@@ -8,13 +8,14 @@ import { PreferencesProvider } from "./src/context/PreferencesContext";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { colors } from "./src/theme";
 
-
-if (!I18nManager.isRTL) {
-  I18nManager.allowRTL(true);
-  I18nManager.forceRTL(true);
-  I18nManager.swapLeftAndRightInRTL(true);
-}
 export default function App() {
+  useEffect(() => {
+    if (!I18nManager.isRTL) {
+      I18nManager.allowRTL(true);
+      I18nManager.forceRTL(true);
+    }
+  }, []);
+
   useEffect(() => {
     if (Platform.OS === "android") {
       Notifications.setNotificationChannelAsync("daily-quotes", {

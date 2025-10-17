@@ -96,7 +96,9 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
   const [selectedImage, setSelectedImage] = useState<LocalImageAsset | null>(
     null
   );
-  const [backgroundPreviewUri, setBackgroundPreviewUri] = useState<string | null>(null);
+  const [backgroundPreviewUri, setBackgroundPreviewUri] = useState<
+    string | null
+  >(null);
   const [authorForm, setAuthorForm] = useState<AdminAuthorPayload>({
     name: "",
   });
@@ -295,17 +297,16 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
     });
   }, []);
 
-  const loadBackgroundPreview = useCallback(
-    (fileName?: string) => {
-      if (!fileName) {
-        setBackgroundPreviewUri(null);
-        return;
-      }
-      const encoded = encodeURIComponent(fileName);
-      setBackgroundPreviewUri(`${BASE_URL}/backgrounds/${encoded}?ts=${Date.now()}`);
-    },
-    [],
-  );
+  const loadBackgroundPreview = useCallback((fileName?: string) => {
+    if (!fileName) {
+      setBackgroundPreviewUri(null);
+      return;
+    }
+    const encoded = encodeURIComponent(fileName);
+    setBackgroundPreviewUri(
+      `${BASE_URL}/backgrounds/${encoded}?ts=${Date.now()}`
+    );
+  }, []);
 
   const handleClearSelectedImage = () => {
     setSelectedImage(null);

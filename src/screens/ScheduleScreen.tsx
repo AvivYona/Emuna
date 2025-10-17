@@ -86,7 +86,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "right",
     marginBottom: spacing.sm,
   },
   subtitle: {

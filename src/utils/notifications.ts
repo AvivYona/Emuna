@@ -36,22 +36,32 @@ export async function scheduleDailyQuoteNotification(
 
   const [hour, minute] = time.split(":").map(Number);
 
-  const quote = await getRandomQuote(authorIds);
-  const body = `${quote.quote}\n— ${quote.author.name}`;
+  try {
+    const quote = await getRandomQuote(authorIds);
+    if (!quote) {
+      console.warn("No quotes available to schedule notification");
+      return;
+    }
 
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "אמונה",
-      body,
-      sound: true,
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour,
-      minute,
-      channelId: Platform.OS === "android" ? ANDROID_CHANNEL_ID : undefined,
-    },
-  });
+    const body = `${quote.quote}\n— ${quote.author.name}`;
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "אמונה",
+        body,
+        sound: true,
+        data: quote.description ? { description: quote.description } : undefined,
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour,
+        minute,
+        channelId: Platform.OS === "android" ? ANDROID_CHANNEL_ID : undefined,
+      },
+    });
+  } catch (error) {
+    console.warn("Failed to schedule daily quote notification", error);
+  }
 }
 
 export async function cancelDailyQuoteNotification() {

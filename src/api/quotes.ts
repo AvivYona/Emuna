@@ -1,22 +1,19 @@
-import { fetchJson } from './client';
-import { Quote } from './types';
-import { fallbackQuotes } from '../utils/fallbackData';
+import { fetchJson } from "./client";
+import { Quote } from "./types";
 
-export async function getQuotesByAuthorIds(authorIds: string[]): Promise<Quote[]> {
-  try {
-    const query = authorIds.length ? `?authors=${authorIds.join(',')}` : '';
-    const data = await fetchJson<Quote[]>(`/quotes${query}`);
-    if (!Array.isArray(data) || data.length === 0) {
-      return fallbackQuotes;
-    }
-    return data;
-  } catch (error) {
-    console.warn('Error fetching quotes, using fallback data', error);
-    return fallbackQuotes;
-  }
+export async function getQuotesByAuthorIds(
+  authorIds: string[]
+): Promise<Quote[]> {
+  const query = authorIds.length ? `?authors=${authorIds.join(",")}` : "";
+  return fetchJson<Quote[]>(`/quotes${query}`);
 }
 
-export async function getRandomQuote(authorIds: string[]): Promise<Quote> {
+export async function getRandomQuote(
+  authorIds: string[]
+): Promise<Quote | null> {
   const quotes = await getQuotesByAuthorIds(authorIds);
+  if (!quotes.length) {
+    return null;
+  }
   return quotes[Math.floor(Math.random() * quotes.length)];
 }

@@ -1,6 +1,5 @@
 import { BASE_URL, fetchJson } from "./client";
 import { Background } from "./types";
-import { fallbackBackgrounds } from "../utils/fallbackData";
 
 type BackgroundApiRecordBase = {
   id?: string;
@@ -98,8 +97,10 @@ function mapBackground(record: BackgroundApiRecord): Background | null {
     return null;
   }
 
-  const versionToken = record.size ? `?v=${record.size}` : '';
-  const imageUrl = `${BASE_URL}/backgrounds/${encodeURIComponent(filename)}${versionToken}`;
+  const versionToken = record.size ? `?v=${record.size}` : "";
+  const imageUrl = `${BASE_URL}/backgrounds/${encodeURIComponent(
+    filename
+  )}${versionToken}`;
   const thumbnailUrl = record.thumbnailUrl ?? imageUrl;
 
   return {
@@ -111,34 +112,19 @@ function mapBackground(record: BackgroundApiRecord): Background | null {
     dominantColor: record.dominantColor,
     displayName: buildDisplayName(record),
   };
-
-  return null;
 }
 
-function isBackground(
-  value: Background | null
-): value is Background {
+function isBackground(value: Background | null): value is Background {
   return value !== null;
 }
 
 export async function getBackgrounds(): Promise<Background[]> {
   try {
     const data = await fetchJson<BackgroundApiRecord[]>("/backgrounds");
-
-    if (!Array.isArray(data)) {
-      return fallbackBackgrounds;
-    }
-
-    const backgrounds = data.map(mapBackground).filter(isBackground);
-
-    if (backgrounds.length === 0) {
-      return fallbackBackgrounds;
-    }
-
-    return backgrounds;
+    return data.map(mapBackground).filter(isBackground);
   } catch (error) {
-    console.warn('Error fetching backgrounds, using fallback data', error);
-    return fallbackBackgrounds;
+    console.warn("Error fetching backgrounds", error);
+    return [];
   }
 }
 

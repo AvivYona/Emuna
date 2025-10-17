@@ -1,18 +1,24 @@
-import React from 'react';
-import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { usePreferences } from '../context/PreferencesContext';
-import { WelcomeScreen } from '../screens/WelcomeScreen';
-import { AuthorsScreen } from '../screens/AuthorsScreen';
-import { ScheduleScreen } from '../screens/ScheduleScreen';
-import { BackgroundsScreen } from '../screens/BackgroundsScreen';
-import { AdminLoginScreen } from '../screens/AdminLoginScreen';
-import { AdminScreen } from '../screens/AdminScreen';
-import { LoadingState } from '../components/LoadingState';
-import { colors } from '../theme';
+import React from "react";
+import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { usePreferences } from "../context/PreferencesContext";
+import { WelcomeScreen } from "../screens/WelcomeScreen";
+import { AuthorsScreen } from "../screens/AuthorsScreen";
+import { ScheduleScreen } from "../screens/ScheduleScreen";
+import { BackgroundsScreen } from "../screens/BackgroundsScreen";
+import { AdminLoginScreen } from "../screens/AdminLoginScreen";
+import { AdminScreen } from "../screens/AdminScreen";
+import { LoadingState } from "../components/LoadingState";
+import { colors } from "../theme";
 
 export type RootStackParamList = {
-  Welcome: { startAtSchedule?: boolean; showPicker?: boolean } | undefined;
+  Welcome:
+    | {
+        startAtSchedule?: boolean;
+        showPicker?: boolean;
+        returnToBackgrounds?: boolean;
+      }
+    | undefined;
   Authors: undefined;
   Schedule: undefined;
   Backgrounds: undefined;
@@ -43,7 +49,7 @@ export const RootNavigator = () => {
   return (
     <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator
-        initialRouteName={showOnboarding ? 'Welcome' : 'Backgrounds'}
+        initialRouteName={showOnboarding ? "Welcome" : "Backgrounds"}
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: colors.background },

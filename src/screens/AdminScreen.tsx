@@ -34,7 +34,6 @@ import {
   AdminAuthorPayload,
 } from "../api/admin";
 import { Quote, Background, Author } from "../api/types";
-import { getAuthors } from "../api/authors";
 import { getBackgroundDisplayName } from "../api/backgrounds";
 import { LoadingState } from "../components/LoadingState";
 import { EmptyState } from "../components/EmptyState";
@@ -109,19 +108,10 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
     setLoadingAuthors(true);
     try {
       const response = await fetchAdminAuthors(adminSecret);
-      if (response.length) {
-        setAuthors(response);
-      } else {
-        const fallback = await getAuthors();
-        setAuthors(fallback);
-      }
+      setAuthors(response);
     } catch (error) {
-      try {
-        const fallback = await getAuthors();
-        setAuthors(fallback);
-      } catch (innerError) {
-        Alert.alert("שגיאה", "טעינת המחברים נכשלה. נסה שוב מאוחר יותר.");
-      }
+      Alert.alert("שגיאה", "טעינת המחברים נכשלה. נסה שוב מאוחר יותר.");
+      setAuthors([]);
     } finally {
       setLoadingAuthors(false);
     }

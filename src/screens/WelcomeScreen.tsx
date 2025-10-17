@@ -59,7 +59,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       setShowPicker(forceShowPicker);
     }
 
-    navigation.setParams({ startAtSchedule: false, showPicker: false });
+    navigation.setParams({
+      startAtSchedule: false,
+      showPicker: false,
+      returnToBackgrounds: false,
+    });
   }, [startAtSchedule, forceShowPicker, navigation]);
 
   useEffect(() => {
@@ -118,7 +122,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       if (returnToBackgrounds && wantsQuotes) {
         navigation.reset({ index: 0, routes: [{ name: "Backgrounds" }] });
       } else {
-        navigation.navigate('Authors');
+        navigation.navigate("Authors");
       }
     } finally {
       setSaving(false);

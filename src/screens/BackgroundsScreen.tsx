@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import * as Notifications from "expo-notifications";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useIsFocused } from "@react-navigation/native";
 import {
   Alert,
   FlatList,
@@ -62,7 +63,9 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const [previewBackground, setPreviewBackground] = useState<Background | null>(
     null
   );
-  const [notificationDescription, setNotificationDescription] = useState<string | null>(null);
+  const [notificationDescription, setNotificationDescription] = useState<
+    string | null
+  >(null);
   const [target, setTarget] = useState<BackgroundTarget>("home");
   const [loadingAction, setLoadingAction] = useState<
     null | "apply" | "save" | "share"
@@ -71,6 +74,8 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const isIOS = Platform.OS === "ios";
   const isProcessing = loadingAction !== null;
   const lastNotificationResponse = Notifications.useLastNotificationResponse();
+  const isFocused = useIsFocused();
+  const handledNotificationIdRef = useRef<string | null>(null);
 
   const loadBackgrounds = useCallback(async () => {
     setRefreshing(true);
@@ -87,13 +92,28 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   }, [loadBackgrounds]);
 
   useEffect(() => {
-    const description = lastNotificationResponse?.notification?.request.content.data?.description;
-    if (typeof description === "string" && description.trim().length > 0) {
+    if (!isFocused || !lastNotificationResponse) {
+      return;
+    }
+
+    const { notification, actionIdentifier } = lastNotificationResponse;
+    const description = notification?.request.content.data?.description;
+    const notificationId = notification?.request.identifier;
+
+    if (
+      actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER &&
+      typeof description === "string" &&
+      description.trim().length > 0 &&
+      notificationId &&
+      handledNotificationIdRef.current !== notificationId
+    ) {
+      handledNotificationIdRef.current = notificationId;
       setNotificationDescription(description);
       setPreviewBackground(null);
+      setTarget("home");
       setModalVisible(true);
     }
-  }, [lastNotificationResponse]);
+  }, [isFocused, lastNotificationResponse]);
 
   const handleSelectBackground = (background: Background) => {
     const initialTarget: BackgroundTarget =
@@ -321,69 +341,72 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
           {previewBackground || notificationDescription ? (
             <View style={styles.modalCard}>
               {previewBackground ? (
-                <ImageBackground
-                  source={{ uri: previewBackground.imageUrl }}
-                  style={styles.modalImage}
-                  imageStyle={styles.modalImageRadius}
-                >
-                  <View style={styles.modalImageOverlay} />
-                </ImageBackground>
-              ) : null}
-              {notificationDescription ? (
+                <>
+                  <ImageBackground
+                    source={{ uri: previewBackground.imageUrl }}
+                    style={styles.modalImage}
+                    imageStyle={styles.modalImageRadius}
+                  >
+                    <View style={styles.modalImageOverlay} />
+                  </ImageBackground>
+                  {isIOS ? (
+                    <View style={styles.instructions}>
+                      <Text style={styles.instructionsTitle}>
+                        איך להגדיר את הרקע
+                      </Text>
+                      <Text style={styles.instructionsItem}>
+                        1. פתחו את אפליקציית התמונות.
+                      </Text>
+                      <Text style={styles.instructionsItem}>
+                        2. בחרו את הרקע ששמרתם הרגע.
+                      </Text>
+                      <Text style={styles.instructionsItem}>
+                        3. הקישו על שיתוף › השתמש כרקע.
+                      </Text>
+                      <Text style={styles.instructionsItem}>
+                        4. אשרו למסך המתאים.
+                      </Text>
+                    </View>
+                  ) : null}
+                  <PrimaryButton
+                    label={
+                      isIOS
+                        ? "שמירת הרקע לאלבום התמונות"
+                        : target === "lock"
+                        ? "החלת הרקע למסך הנעילה"
+                        : "החלת הרקע למסך הבית"
+                    }
+                    onPress={handleApplyWallpaper}
+                    loading={loadingAction === (isIOS ? "save" : "apply")}
+                    disabled={
+                      isProcessing &&
+                      loadingAction !== (isIOS ? "save" : "apply")
+                    }
+                  />
+                  {!isIOS ? (
+                    <PrimaryButton
+                      label="שמירת הרקע לאלבום התמונות"
+                      variant="secondary"
+                      onPress={handleSaveToLibrary}
+                      loading={loadingAction === "save"}
+                      disabled={isProcessing}
+                    />
+                  ) : null}
+                  <PrimaryButton
+                    label="שיתוף הרקע"
+                    variant="secondary"
+                    onPress={handleShareBackground}
+                    loading={loadingAction === "share"}
+                    disabled={isProcessing}
+                  />
+                </>
+              ) : notificationDescription ? (
                 <View style={styles.notificationDescriptionBox}>
-                  <Text style={styles.notificationDescriptionTitle}>תיאור הציטוט</Text>
-                  <Text style={styles.notificationDescriptionText}>{notificationDescription}</Text>
-                </View>
-              ) : null}
-              {isIOS ? (
-                <View style={styles.instructions}>
-                  <Text style={styles.instructionsTitle}>
-                    איך להגדיר את הרקע
-                  </Text>
-                  <Text style={styles.instructionsItem}>
-                    1. פתחו את אפליקציית התמונות.
-                  </Text>
-                  <Text style={styles.instructionsItem}>
-                    2. בחרו את הרקע ששמרתם הרגע.
-                  </Text>
-                  <Text style={styles.instructionsItem}>
-                    3. הקישו על שיתוף › השתמש כרקע.
-                  </Text>
-                  <Text style={styles.instructionsItem}>
-                    4. אשרו למסך המתאים.
+                  <Text style={styles.notificationDescriptionText}>
+                    {notificationDescription}
                   </Text>
                 </View>
               ) : null}
-              <PrimaryButton
-                label={
-                  isIOS
-                    ? "שמירת הרקע לאלבום התמונות"
-                    : target === "lock"
-                    ? "החלת הרקע למסך הנעילה"
-                    : "החלת הרקע למסך הבית"
-                }
-                onPress={handleApplyWallpaper}
-                loading={loadingAction === (isIOS ? "save" : "apply")}
-                disabled={
-                  isProcessing && loadingAction !== (isIOS ? "save" : "apply")
-                }
-              />
-              {!isIOS ? (
-                <PrimaryButton
-                  label="שמירת הרקע לאלבום התמונות"
-                  variant="secondary"
-                  onPress={handleSaveToLibrary}
-                  loading={loadingAction === "save"}
-                  disabled={isProcessing && loadingAction !== "save"}
-                />
-              ) : null}
-              <PrimaryButton
-                label="שיתוף הרקע"
-                variant="secondary"
-                onPress={handleShareBackground}
-                loading={loadingAction === "share"}
-                disabled={isProcessing && loadingAction !== "share"}
-              />
               <PrimaryButton
                 label="סגירה"
                 variant="secondary"
@@ -430,13 +453,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "left",
+    textAlign: "right",
     marginBottom: spacing.sm,
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: "left",
+    textAlign: "right",
     marginBottom: spacing.md,
   },
   listContent: {
@@ -458,13 +481,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: colors.textPrimary,
-    textAlign: "left",
+    textAlign: "right",
     marginBottom: spacing.xs,
   },
   summaryText: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: "left",
+    textAlign: "right",
   },
   summaryButton: {
     marginTop: spacing.md,
@@ -493,7 +516,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "left",
+    textAlign: "right",
   },
   modalImage: {
     height: 240,
@@ -514,15 +537,33 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.xs,
   },
+  notificationDescriptionBox: {
+    backgroundColor: colors.card,
+    borderRadius: spacing.lg,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
+  notificationDescriptionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.textPrimary,
+    textAlign: "left",
+  },
+  notificationDescriptionText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: "left",
+    lineHeight: 22,
+  },
   instructionsTitle: {
     fontSize: 16,
     fontWeight: "600",
     color: colors.textPrimary,
-    textAlign: "left",
+    textAlign: "right",
   },
   instructionsItem: {
     fontSize: 14,
     color: colors.textSecondary,
-    textAlign: "left",
+    textAlign: "right",
   },
 });

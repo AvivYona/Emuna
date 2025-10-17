@@ -11,16 +11,19 @@ export const fallbackQuotes: Quote[] = [
   {
     _id: 'quote-1',
     quote: 'גם בתוך הסערה אפשר למצוא נקודת אור קטנה ששווה להחזיק בה.',
+    description: 'תזכורת שהתקווה קיימת בכל מצב גם כשהכל נראה סוער.',
     author: fallbackAuthors[0],
   },
   {
     _id: 'quote-2',
     quote: 'כל יצירה מתחילה באמונה קטנה, והופכת לדרך שלמה.',
+    description: 'אמונה קטנה יכולה להוביל למסע חדש ומעורר השראה.',
     author: fallbackAuthors[1],
   },
   {
     _id: 'quote-3',
     quote: 'החסד מתחיל ברגע שאנו מחייכים אל האחר.',
+    description: 'חיוך קטן פותח שער לעוד פעולת חסד ולקירוב לבבות.',
     author: fallbackAuthors[2],
   },
 ];

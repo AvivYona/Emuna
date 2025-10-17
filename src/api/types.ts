@@ -6,6 +6,7 @@ export interface Author {
 export interface Quote {
   _id: string;
   quote: string;
+  description?: string;
   author: Author;
 }
 

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import * as Notifications from "expo-notifications";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import {
   Alert,
@@ -61,6 +62,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const [previewBackground, setPreviewBackground] = useState<Background | null>(
     null
   );
+  const [notificationDescription, setNotificationDescription] = useState<string | null>(null);
   const [target, setTarget] = useState<BackgroundTarget>("home");
   const [loadingAction, setLoadingAction] = useState<
     null | "apply" | "save" | "share"
@@ -68,6 +70,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
 
   const isIOS = Platform.OS === "ios";
   const isProcessing = loadingAction !== null;
+  const lastNotificationResponse = Notifications.useLastNotificationResponse();
 
   const loadBackgrounds = useCallback(async () => {
     setRefreshing(true);
@@ -82,6 +85,15 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   useEffect(() => {
     loadBackgrounds();
   }, [loadBackgrounds]);
+
+  useEffect(() => {
+    const description = lastNotificationResponse?.notification?.request.content.data?.description;
+    if (typeof description === "string" && description.trim().length > 0) {
+      setNotificationDescription(description);
+      setPreviewBackground(null);
+      setModalVisible(true);
+    }
+  }, [lastNotificationResponse]);
 
   const handleSelectBackground = (background: Background) => {
     const initialTarget: BackgroundTarget =
@@ -100,6 +112,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     }
     setModalVisible(false);
     setPreviewBackground(null);
+    setNotificationDescription(null);
     setTarget("home");
   };
 
@@ -305,15 +318,23 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
           >
             <View />
           </Pressable>
-          {previewBackground ? (
+          {previewBackground || notificationDescription ? (
             <View style={styles.modalCard}>
-              <ImageBackground
-                source={{ uri: previewBackground.imageUrl }}
-                style={styles.modalImage}
-                imageStyle={styles.modalImageRadius}
-              >
-                <View style={styles.modalImageOverlay} />
-              </ImageBackground>
+              {previewBackground ? (
+                <ImageBackground
+                  source={{ uri: previewBackground.imageUrl }}
+                  style={styles.modalImage}
+                  imageStyle={styles.modalImageRadius}
+                >
+                  <View style={styles.modalImageOverlay} />
+                </ImageBackground>
+              ) : null}
+              {notificationDescription ? (
+                <View style={styles.notificationDescriptionBox}>
+                  <Text style={styles.notificationDescriptionTitle}>תיאור הציטוט</Text>
+                  <Text style={styles.notificationDescriptionText}>{notificationDescription}</Text>
+                </View>
+              ) : null}
               {isIOS ? (
                 <View style={styles.instructions}>
                   <Text style={styles.instructionsTitle}>

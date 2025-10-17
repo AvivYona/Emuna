@@ -405,13 +405,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: "left",
     marginBottom: spacing.sm,
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: "right",
+    textAlign: "left",
     marginBottom: spacing.md,
   },
   listContent: {
@@ -433,13 +433,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: "left",
     marginBottom: spacing.xs,
   },
   summaryText: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: "right",
+    textAlign: "left",
   },
   summaryButton: {
     marginTop: spacing.md,
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: "left",
   },
   modalImage: {
     height: 240,
@@ -493,11 +493,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: "left",
   },
   instructionsItem: {
     fontSize: 14,
     color: colors.textSecondary,
-    textAlign: "right",
+    textAlign: "left",
   },
 });

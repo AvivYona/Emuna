@@ -1,24 +1,24 @@
-import React, { useState } from 'react';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
-import { RootStackParamList } from '../navigation/RootNavigator';
-import { ScreenContainer } from '../components/ScreenContainer';
-import { GlassCard } from '../components/GlassCard';
-import { PrimaryButton } from '../components/PrimaryButton';
-import { colors, spacing } from '../theme';
-import { verifyAdminPassphrase } from '../api/admin';
+import React, { useState } from "react";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import { RootStackParamList } from "../navigation/RootNavigator";
+import { ScreenContainer } from "../components/ScreenContainer";
+import { GlassCard } from "../components/GlassCard";
+import { PrimaryButton } from "../components/PrimaryButton";
+import { colors, spacing } from "../theme";
+import { verifyAdminPassphrase } from "../api/admin";
 
-type Props = NativeStackScreenProps<RootStackParamList, 'AdminLogin'>;
+type Props = NativeStackScreenProps<RootStackParamList, "AdminLogin">;
 
 export const AdminLoginScreen: React.FC<Props> = ({ navigation }) => {
-  const [passphrase, setPassphrase] = useState('');
+  const [passphrase, setPassphrase] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     const trimmed = passphrase.trim();
     if (!trimmed) {
-      setError('אנא הזן סיסמה סודית');
+      setError("אנא הזן סיסמה סודית");
       return;
     }
 
@@ -27,21 +27,21 @@ export const AdminLoginScreen: React.FC<Props> = ({ navigation }) => {
     try {
       const isValid = await verifyAdminPassphrase(trimmed);
       if (!isValid) {
-        setError('סיסמה שגויה. נסה שוב.');
+        setError("סיסמה שגויה. נסה שוב.");
         return;
       }
 
-      setPassphrase('');
-      navigation.replace('Admin', { adminSecret: trimmed });
+      setPassphrase("");
+      navigation.replace("Admin", { adminSecret: trimmed });
     } catch (err) {
-      setError('לא ניתן להתחבר לשרת. נסה שוב מאוחר יותר.');
+      setError("לא ניתן להתחבר לשרת. נסה שוב מאוחר יותר.");
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleCancel = () => {
-    navigation.replace('Backgrounds');
+    navigation.replace("Backgrounds");
   };
 
   return (
@@ -49,7 +49,9 @@ export const AdminLoginScreen: React.FC<Props> = ({ navigation }) => {
       <GlassCard>
         <View style={styles.header}>
           <Text style={styles.heading}>כניסת מנהל</Text>
-          <Text style={styles.subheading}>סיסמה סודית נדרשת כדי לפתוח את מסך הניהול.</Text>
+          <Text style={styles.subheading}>
+            סיסמה סודית נדרשת כדי לפתוח את מסך הניהול.
+          </Text>
         </View>
         <TextInput
           value={passphrase}
@@ -61,8 +63,18 @@ export const AdminLoginScreen: React.FC<Props> = ({ navigation }) => {
           style={styles.input}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
-        <PrimaryButton label="כניסה" onPress={handleSubmit} disabled={submitting} loading={submitting} />
-        <PrimaryButton label="ביטול" variant="secondary" onPress={handleCancel} disabled={submitting} />
+        <PrimaryButton
+          label="כניסה"
+          onPress={handleSubmit}
+          disabled={submitting}
+          loading={submitting}
+        />
+        <PrimaryButton
+          label="ביטול"
+          variant="secondary"
+          onPress={handleCancel}
+          disabled={submitting}
+        />
       </GlassCard>
     </ScreenContainer>
   );
@@ -75,18 +87,18 @@ const styles = StyleSheet.create({
   },
   heading: {
     fontSize: 26,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: 'right',
+    textAlign: "left",
   },
   subheading: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: 'right',
+    textAlign: "left",
     lineHeight: 22,
   },
   input: {
-    width: '100%',
+    width: "100%",
     borderRadius: spacing.lg,
     borderWidth: 1,
     borderColor: colors.divider,
@@ -95,12 +107,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: colors.textPrimary,
     backgroundColor: colors.card,
-    textAlign: 'right',
+    textAlign: "right",
     marginBottom: spacing.sm,
   },
   error: {
     color: colors.danger,
-    textAlign: 'right',
+    textAlign: "right",
     marginBottom: spacing.sm,
   },
 });

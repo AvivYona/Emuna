@@ -773,7 +773,6 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
                   setQuoteForm((prev) => ({ ...prev, quote: value }))
                 }
                 style={[styles.input, styles.textarea]}
-                placeholder="כתוב כאן את הציטוט..."
                 placeholderTextColor="rgba(58, 32, 22, 0.4)"
               />
               <Text style={styles.modalLabel}>בחר מחבר</Text>
@@ -942,7 +941,6 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
                 value={authorForm.name}
                 onChangeText={(value) => setAuthorForm({ name: value })}
                 style={styles.input}
-                placeholder='לדוגמה: הרמב"ם'
                 placeholderTextColor="rgba(58, 32, 22, 0.4)"
               />
             </ScrollView>
@@ -970,12 +968,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: "left",
   },
   subheading: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: "right",
+    textAlign: "left",
     marginTop: spacing.xs,
     marginBottom: spacing.lg,
   },
@@ -1042,7 +1040,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.textPrimary,
     flex: 1,
-    textAlign: "right",
+    textAlign: "left",
   },
   itemActions: {
     flexDirection: "row",
@@ -1067,13 +1065,13 @@ const styles = StyleSheet.create({
   itemBody: {
     fontSize: 15,
     color: colors.textSecondary,
-    textAlign: "right",
+    textAlign: "left",
     lineHeight: 22,
   },
   itemMeta: {
     fontSize: 12,
     color: "rgba(58, 32, 22, 0.55)",
-    textAlign: "right",
+    textAlign: "left",
     direction: "rtl",
   },
   modalOverlay: {
@@ -1093,7 +1091,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: "left",
   },
   modalScroll: {
     marginVertical: spacing.sm,
@@ -1105,7 +1103,7 @@ const styles = StyleSheet.create({
   modalLabel: {
     fontSize: 14,
     color: colors.textSecondary,
-    textAlign: "right",
+    textAlign: "left",
   },
   imagePreview: {
     gap: spacing.sm,
@@ -1158,7 +1156,7 @@ const styles = StyleSheet.create({
   authorOptionLabel: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: "right",
+    textAlign: "left",
   },
   authorOptionLabelSelected: {
     color: colors.accent,
@@ -1174,6 +1172,6 @@ const styles = StyleSheet.create({
   authorMetaText: {
     fontSize: 13,
     color: colors.textSecondary,
-    textAlign: "right",
+    textAlign: "left",
   },
 });

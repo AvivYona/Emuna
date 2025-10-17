@@ -19,7 +19,8 @@ export type AuthorsScreenProps = NativeStackScreenProps<
 >;
 
 export const AuthorsScreen: React.FC<AuthorsScreenProps> = ({ navigation }) => {
-  const { favoriteAuthors, setFavoriteAuthors, notificationTime } = usePreferences();
+  const { favoriteAuthors, setFavoriteAuthors, notificationTime } =
+    usePreferences();
   const [authors, setAuthors] = useState<Author[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,14 +124,14 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: "left",
     marginBottom: spacing.sm,
     direction: "rtl",
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: "right",
+    textAlign: "left",
     marginBottom: spacing.md,
   },
   chipsContainer: {

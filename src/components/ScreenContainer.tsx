@@ -8,7 +8,13 @@ type Props = {
 } & ViewProps;
 
 export const ScreenContainer: React.FC<Props> = ({ children, withScroll = true, style, ...rest }) => {
-  const content = withScroll ? <ScrollView contentContainerStyle={styles.scroll}>{children}</ScrollView> : children;
+  const content = withScroll ? (
+    <ScrollView style={styles.scrollView} contentContainerStyle={styles.scroll}>
+      {children}
+    </ScrollView>
+  ) : (
+    children
+  );
   return (
     <View style={[styles.root, style]} {...rest}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
@@ -34,6 +40,10 @@ const styles = StyleSheet.create({
   },
   avoiding: {
     flex: 1,
+  },
+  scrollView: {
+    direction: 'rtl',
+    writingDirection: 'rtl',
   },
   scroll: {
     flexGrow: 1,

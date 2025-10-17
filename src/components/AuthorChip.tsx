@@ -1,6 +1,6 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
-import { colors, palette, spacing } from '../theme';
+import React from "react";
+import { Pressable, StyleSheet, Text } from "react-native";
+import { colors, palette, spacing } from "../theme";
 
 type Props = {
   name: string;
@@ -19,7 +19,9 @@ export const AuthorChip: React.FC<Props> = ({ name, selected, onToggle }) => {
         pressed ? styles.pressed : null,
       ]}
     >
-      <Text style={[styles.label, selected ? styles.selectedLabel : null]}>{name}</Text>
+      <Text style={[styles.label, selected ? styles.selectedLabel : null]}>
+        {name}
+      </Text>
     </Pressable>
   );
 };
@@ -46,10 +48,11 @@ const styles = StyleSheet.create({
   label: {
     color: colors.textPrimary,
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
+    textAlign: "left",
   },
   selectedLabel: {
     color: colors.background,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

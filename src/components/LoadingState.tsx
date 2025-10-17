@@ -1,8 +1,10 @@
-import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { colors, spacing } from '../theme';
+import React from "react";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { colors, spacing } from "../theme";
 
-export const LoadingState: React.FC<{ label?: string }> = ({ label = 'טוען...' }) => {
+export const LoadingState: React.FC<{ label?: string }> = ({
+  label = "טוען...",
+}) => {
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color={colors.accent} />
@@ -13,9 +15,9 @@ export const LoadingState: React.FC<{ label?: string }> = ({ label = 'טוען..
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: spacing.xl,
   },
   text: {

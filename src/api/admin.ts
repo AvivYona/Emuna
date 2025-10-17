@@ -8,6 +8,7 @@ type AdminVerifyResponse = {
 export type AdminQuotePayload = {
   quote: string;
   authorId: string;
+  description?: string;
 };
 
 export type AdminBackgroundFile = {

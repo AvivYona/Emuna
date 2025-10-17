@@ -91,7 +91,8 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
   const [quoteForm, setQuoteForm] = useState<{
     quote: string;
     authorId: string;
-  }>({ quote: "", authorId: "" });
+    description: string;
+  }>({ quote: "", authorId: "", description: "" });
   const [selectedImage, setSelectedImage] = useState<LocalImageAsset | null>(
     null
   );
@@ -150,7 +151,11 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
   );
 
   const resetQuoteForm = () => {
-    setQuoteForm({ quote: "", authorId: authors[0]?._id ?? "" });
+    setQuoteForm({
+      quote: "",
+      authorId: authors[0]?._id ?? "",
+      description: "",
+    });
   };
 
   const resetAuthorForm = () => {
@@ -163,7 +168,11 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const openEditQuote = (quote: Quote) => {
-    setQuoteForm({ quote: quote.quote, authorId: quote.author._id });
+    setQuoteForm({
+      quote: quote.quote,
+      authorId: quote.author._id,
+      description: quote.description ?? "",
+    });
     setQuoteModal({ visible: true, mode: "edit", quote });
   };
 
@@ -533,21 +542,22 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
 
     setSubmitting(true);
     try {
+      const trimmedDescription = quoteForm.description.trim();
+      const basePayload = {
+        quote: quoteForm.quote.trim(),
+        authorId: quoteForm.authorId,
+      };
+      const payload: AdminQuotePayload = trimmedDescription
+        ? { ...basePayload, description: trimmedDescription }
+        : basePayload;
+
       if (
         quoteModal.visible &&
         quoteModal.mode === "edit" &&
         quoteModal.quote
       ) {
-        const payload: AdminQuotePayload = {
-          quote: quoteForm.quote.trim(),
-          authorId: quoteForm.authorId,
-        };
         await updateAdminQuote(adminSecret, quoteModal.quote._id, payload);
       } else {
-        const payload: AdminQuotePayload = {
-          quote: quoteForm.quote.trim(),
-          authorId: quoteForm.authorId,
-        };
         await createAdminQuote(adminSecret, payload);
       }
 
@@ -765,38 +775,54 @@ export const AdminScreen: React.FC<Props> = ({ navigation, route }) => {
                 style={[styles.input, styles.textarea]}
                 placeholderTextColor="rgba(58, 32, 22, 0.4)"
               />
+              <Text style={styles.modalLabel}>תיאור (לא חובה)</Text>
+              <TextInput
+                multiline
+                value={quoteForm.description}
+                onChangeText={(value) =>
+                  setQuoteForm((prev) => ({ ...prev, description: value }))
+                }
+                style={[styles.input, styles.descriptionInput]}
+                placeholderTextColor="rgba(58, 32, 22, 0.4)"
+              />
               <Text style={styles.modalLabel}>בחר מחבר</Text>
-              <View style={styles.authorList}>
+              <View style={styles.authorListContainer}>
                 {loadingAuthors ? (
                   <LoadingState label="טוען מחברים..." />
                 ) : (
-                  authors.map((author) => {
-                    const selected = quoteForm.authorId === author._id;
-                    return (
-                      <Pressable
-                        key={author._id}
-                        onPress={() =>
-                          setQuoteForm((prev) => ({
-                            ...prev,
-                            authorId: author._id,
-                          }))
-                        }
-                        style={[
-                          styles.authorOption,
-                          selected && styles.authorOptionSelected,
-                        ]}
-                      >
-                        <Text
+                  <ScrollView
+                    style={styles.authorListScroll}
+                    contentContainerStyle={styles.authorList}
+                    showsVerticalScrollIndicator
+                  >
+                    {authors.map((author) => {
+                      const selected = quoteForm.authorId === author._id;
+                      return (
+                        <Pressable
+                          key={author._id}
+                          onPress={() =>
+                            setQuoteForm((prev) => ({
+                              ...prev,
+                              authorId: author._id,
+                            }))
+                          }
                           style={[
-                            styles.authorOptionLabel,
-                            selected && styles.authorOptionLabelSelected,
+                            styles.authorOption,
+                            selected && styles.authorOptionSelected,
                           ]}
                         >
-                          {author.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })
+                          <Text
+                            style={[
+                              styles.authorOptionLabel,
+                              selected && styles.authorOptionLabelSelected,
+                            ]}
+                          >
+                            {author.name}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
                 )}
               </View>
             </ScrollView>
@@ -1127,6 +1153,18 @@ const styles = StyleSheet.create({
     minHeight: 120,
     textAlignVertical: "top",
     lineHeight: 22,
+  },
+  descriptionInput: {
+    minHeight: 80,
+    textAlignVertical: "top",
+    lineHeight: 20,
+  },
+  authorListContainer: {
+    maxHeight: 220,
+  },
+  authorListScroll: {
+    flexGrow: 0,
+    maxHeight: 220,
   },
   authorList: {
     gap: spacing.xs,

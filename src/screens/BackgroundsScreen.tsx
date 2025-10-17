@@ -201,7 +201,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
       const backgroundName = getBackgroundDisplayName(previewBackground);
       await Share.share({
         url: localUri,
-        message: `רקע מאמונה: ${backgroundName}`,
+        message: `רקע מאמונה`,
       });
     } catch (error) {
       console.warn("Error sharing background", error);
@@ -215,7 +215,11 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   };
 
   const handleEditSchedule = () => {
-    navigation.navigate("Welcome", { startAtSchedule: true, showPicker: true, returnToBackgrounds: true });
+    navigation.navigate("Welcome", {
+      startAtSchedule: true,
+      showPicker: true,
+      returnToBackgrounds: true,
+    });
   };
 
   const handleEditAuthors = () => {

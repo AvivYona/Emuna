@@ -29,9 +29,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     setWantsQuotes,
     setFavoriteAuthors,
     setNotificationTime,
+    wantsQuotes,
   } = usePreferences();
   const startAtSchedule = route.params?.startAtSchedule ?? false;
   const forceShowPicker = route.params?.showPicker;
+  const returnToBackgrounds = route.params?.returnToBackgrounds ?? false;
   const [step, setStep] = useState<Step>(
     startAtSchedule ? "schedule" : "intro"
   );
@@ -113,7 +115,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         console.warn("Notification permission request failed", error);
       }
       setWantsQuotes(true);
-      navigation.navigate("Authors");
+      if (returnToBackgrounds && wantsQuotes) {
+        navigation.reset({ index: 0, routes: [{ name: "Backgrounds" }] });
+      } else {
+        navigation.navigate('Authors');
+      }
     } finally {
       setSaving(false);
     }

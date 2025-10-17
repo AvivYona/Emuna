@@ -215,7 +215,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   };
 
   const handleEditSchedule = () => {
-    navigation.navigate("Welcome", { startAtSchedule: true, showPicker: true });
+    navigation.navigate("Welcome", { startAtSchedule: true, showPicker: true, returnToBackgrounds: true });
   };
 
   const handleEditAuthors = () => {

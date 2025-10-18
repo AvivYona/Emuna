@@ -32,6 +32,8 @@ import {
   saveBackgroundToCameraRoll,
 } from "../utils/backgroundAssets";
 
+const handledNotificationIds = new Set<string>();
+
 export type BackgroundsScreenProps = NativeStackScreenProps<
   RootStackParamList,
   "Backgrounds"
@@ -53,7 +55,6 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     setSelectedBackground,
     wantsQuotes,
     setWantsQuotes,
-    favoriteAuthors,
     notificationTime,
     loaded,
   } = usePreferences();
@@ -76,6 +77,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const lastNotificationResponse = Notifications.useLastNotificationResponse();
   const isFocused = useIsFocused();
   const handledNotificationIdRef = useRef<string | null>(null);
+  const focusTimestampRef = useRef<number>(Date.now());
 
   const loadBackgrounds = useCallback(async () => {
     setRefreshing(true);
@@ -92,11 +94,32 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   }, [loadBackgrounds]);
 
   useEffect(() => {
+    if (isFocused) {
+      focusTimestampRef.current = Date.now();
+    }
+  }, [isFocused]);
+
+  useEffect(() => {
+    if (!wantsQuotes) {
+      return;
+    }
     if (!isFocused || !lastNotificationResponse) {
       return;
     }
 
-    const { notification, actionIdentifier } = lastNotificationResponse;
+    const { notification, actionIdentifier, date } = lastNotificationResponse;
+    const responseTimestamp =
+      typeof date === "number"
+        ? date
+        : date instanceof Date
+        ? date.getTime()
+        : null;
+    if (
+      responseTimestamp !== null &&
+      responseTimestamp <= focusTimestampRef.current
+    ) {
+      return;
+    }
     const description = notification?.request.content.data?.description;
     const notificationId = notification?.request.identifier;
 
@@ -105,15 +128,17 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
       typeof description === "string" &&
       description.trim().length > 0 &&
       notificationId &&
-      handledNotificationIdRef.current !== notificationId
+      handledNotificationIdRef.current !== notificationId &&
+      !handledNotificationIds.has(notificationId)
     ) {
+      handledNotificationIds.add(notificationId);
       handledNotificationIdRef.current = notificationId;
       setNotificationDescription(description);
       setPreviewBackground(null);
       setTarget("home");
       setModalVisible(true);
     }
-  }, [isFocused, lastNotificationResponse]);
+  }, [isFocused, lastNotificationResponse, wantsQuotes]);
 
   const handleSelectBackground = (background: Background) => {
     const initialTarget: BackgroundTarget =
@@ -251,12 +276,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     navigation.navigate("Welcome", {
       startAtSchedule: true,
       showPicker: true,
-      returnToBackgrounds: true,
     });
-  };
-
-  const handleEditAuthors = () => {
-    navigation.navigate("Authors");
   };
 
   const handleEnableQuotes = () => {
@@ -289,19 +309,10 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
               ? formatTime(fromTimeString(notificationTime))
               : "לא נבחרה"}
           </Text>
-          <Text style={styles.summaryText}>
-            מחברים אהובים:{" "}
-            {favoriteAuthors.length ? favoriteAuthors.length : "לא נבחרו"}
-          </Text>
           <PrimaryButton
             label="עריכת זמן ההתראה"
             onPress={handleEditSchedule}
             style={styles.summaryButton}
-          />
-          <PrimaryButton
-            label="עריכת המחברים"
-            onPress={handleEditAuthors}
-            variant="secondary"
           />
           <PrimaryButton
             label="כיבוי ההתראות"
@@ -453,13 +464,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: "left",
     marginBottom: spacing.sm,
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: "right",
+    textAlign: "left",
     marginBottom: spacing.md,
   },
   listContent: {
@@ -481,13 +492,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: "left",
     marginBottom: spacing.xs,
   },
   summaryText: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: "right",
+    textAlign: "left",
   },
   summaryButton: {
     marginTop: spacing.md,
@@ -516,7 +527,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: "left",
   },
   modalImage: {
     height: 240,
@@ -559,11 +570,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: "left",
   },
   instructionsItem: {
     fontSize: 14,
     color: colors.textSecondary,
-    textAlign: "right",
+    textAlign: "left",
   },
 });

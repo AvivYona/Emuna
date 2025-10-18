@@ -3,7 +3,6 @@ import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { usePreferences } from "../context/PreferencesContext";
 import { WelcomeScreen } from "../screens/WelcomeScreen";
-import { AuthorsScreen } from "../screens/AuthorsScreen";
 import { ScheduleScreen } from "../screens/ScheduleScreen";
 import { BackgroundsScreen } from "../screens/BackgroundsScreen";
 import { AdminLoginScreen } from "../screens/AdminLoginScreen";
@@ -16,10 +15,8 @@ export type RootStackParamList = {
     | {
         startAtSchedule?: boolean;
         showPicker?: boolean;
-        returnToBackgrounds?: boolean;
       }
     | undefined;
-  Authors: undefined;
   Schedule: undefined;
   Backgrounds: undefined;
   AdminLogin: undefined;
@@ -57,7 +54,6 @@ export const RootNavigator = () => {
       >
         <Stack.Screen name="Welcome" component={WelcomeScreen} />
         <Stack.Screen name="Schedule" component={ScheduleScreen} />
-        <Stack.Screen name="Authors" component={AuthorsScreen} />
         <Stack.Screen name="Backgrounds" component={BackgroundsScreen} />
         <Stack.Screen name="AdminLogin" component={AdminLoginScreen} />
         <Stack.Screen name="Admin" component={AdminScreen} />

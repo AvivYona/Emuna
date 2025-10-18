@@ -27,7 +27,6 @@ export function removeItem(key: string): Promise<void> {
 
 export const STORAGE_KEYS = {
   wantsQuotes: 'isUserWantQuotes',
-  favoriteAuthors: 'favoriteAuthors',
   notificationTime: 'notificationTime',
   selectedBackground: 'selectedBackground',
   selectedBackgroundTarget: 'selectedBackgroundTarget',

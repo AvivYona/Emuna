@@ -23,10 +23,7 @@ export async function ensureNotificationsPermission(): Promise<boolean> {
   return request.granted || isIosGranted(request.ios?.status);
 }
 
-export async function scheduleDailyQuoteNotification(
-  time: string,
-  authorIds: string[]
-) {
+export async function scheduleDailyQuoteNotification(time: string) {
   const hasPermission = await ensureNotificationsPermission();
   if (!hasPermission) {
     return;
@@ -37,7 +34,7 @@ export async function scheduleDailyQuoteNotification(
   const [hour, minute] = time.split(":").map(Number);
 
   try {
-    const quote = await getRandomQuote(authorIds);
+    const quote = await getRandomQuote();
     if (!quote) {
       console.warn("No quotes available to schedule notification");
       return;

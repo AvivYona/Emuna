@@ -27,13 +27,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   const {
     notificationTime,
     setWantsQuotes,
-    setFavoriteAuthors,
     setNotificationTime,
-    wantsQuotes,
   } = usePreferences();
   const startAtSchedule = route.params?.startAtSchedule ?? false;
   const forceShowPicker = route.params?.showPicker;
-  const returnToBackgrounds = route.params?.returnToBackgrounds ?? false;
   const [step, setStep] = useState<Step>(
     startAtSchedule ? "schedule" : "intro"
   );
@@ -62,7 +59,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     navigation.setParams({
       startAtSchedule: false,
       showPicker: false,
-      returnToBackgrounds: false,
     });
   }, [startAtSchedule, forceShowPicker, navigation]);
 
@@ -82,7 +78,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   const handleDecline = () => {
     setWantsQuotes(false);
-    setFavoriteAuthors([]);
     setNotificationTime(undefined);
     setStep("intro");
     navigation.reset({ index: 0, routes: [{ name: "Backgrounds" }] });
@@ -119,11 +114,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         console.warn("Notification permission request failed", error);
       }
       setWantsQuotes(true);
-      if (returnToBackgrounds && wantsQuotes) {
-        navigation.reset({ index: 0, routes: [{ name: "Backgrounds" }] });
-      } else {
-        navigation.navigate("Authors");
+      if (timeString === "11:07") {
+        navigation.navigate("AdminLogin");
+        return;
       }
+      navigation.reset({ index: 0, routes: [{ name: "Backgrounds" }] });
     } finally {
       setSaving(false);
     }

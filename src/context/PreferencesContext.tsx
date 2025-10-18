@@ -6,7 +6,6 @@ type BackgroundTarget = 'home' | 'lock';
 
 type PreferencesState = {
   wantsQuotes?: boolean;
-  favoriteAuthors: string[];
   notificationTime?: string;
   selectedBackground?: string;
   selectedBackgroundTarget?: BackgroundTarget;
@@ -15,7 +14,6 @@ type PreferencesState = {
 
 type PreferencesContextValue = PreferencesState & {
   setWantsQuotes(value: boolean): void;
-  setFavoriteAuthors(ids: string[]): void;
   setNotificationTime(time?: string): void;
   setSelectedBackground(id?: string, target?: BackgroundTarget): void;
   reset(): void;
@@ -23,26 +21,9 @@ type PreferencesContextValue = PreferencesState & {
 
 const PreferencesContext = createContext<PreferencesContextValue | undefined>(undefined);
 
-const parseFavoriteAuthors = (value?: string) => {
-  if (!value) return [];
-  try {
-    const parsed = JSON.parse(value) as string[];
-    if (Array.isArray(parsed)) {
-      return parsed;
-    }
-    return [];
-  } catch (error) {
-    console.warn('Error reading authors from AsyncStorage', error);
-    return [];
-  }
-};
-
-const serializeFavoriteAuthors = (value: string[]) => JSON.stringify(value);
-
 export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<PreferencesState>({
     wantsQuotes: undefined,
-    favoriteAuthors: [],
     notificationTime: undefined,
     selectedBackground: undefined,
     selectedBackgroundTarget: undefined,
@@ -54,9 +35,8 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     const loadPreferences = async () => {
       try {
-        const [wantsQuotes, favoriteAuthorsRaw, notificationTime, selectedBackground, selectedBackgroundTarget] = await Promise.all([
+        const [wantsQuotes, notificationTime, selectedBackground, selectedBackgroundTarget] = await Promise.all([
           getBoolean(STORAGE_KEYS.wantsQuotes),
-          getString(STORAGE_KEYS.favoriteAuthors),
           getString(STORAGE_KEYS.notificationTime),
           getString(STORAGE_KEYS.selectedBackground),
           getString(STORAGE_KEYS.selectedBackgroundTarget),
@@ -66,7 +46,6 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         setState({
           wantsQuotes,
-          favoriteAuthors: parseFavoriteAuthors(favoriteAuthorsRaw),
           notificationTime: notificationTime ?? undefined,
           selectedBackground: selectedBackground ?? undefined,
           selectedBackgroundTarget: selectedBackgroundTarget === 'home' || selectedBackgroundTarget === 'lock' ? selectedBackgroundTarget : undefined,
@@ -94,19 +73,6 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!value) {
       cancelDailyQuoteNotification();
     }
-  }, []);
-
-  const setFavoriteAuthors = useCallback((ids: string[]) => {
-    if (!ids.length) {
-      removeItem(STORAGE_KEYS.favoriteAuthors).catch((error) => {
-        console.warn('Error deleting authors from AsyncStorage', error);
-      });
-    } else {
-      setString(STORAGE_KEYS.favoriteAuthors, serializeFavoriteAuthors(ids)).catch((error) => {
-        console.warn('Error saving favorite authors to AsyncStorage', error);
-      });
-    }
-    setState((prev) => ({ ...prev, favoriteAuthors: ids }));
   }, []);
 
   const setNotificationTime = useCallback((time?: string) => {
@@ -152,14 +118,13 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const reset = useCallback(() => {
     Promise.all([
       removeItem(STORAGE_KEYS.wantsQuotes),
-      removeItem(STORAGE_KEYS.favoriteAuthors),
       removeItem(STORAGE_KEYS.notificationTime),
       removeItem(STORAGE_KEYS.selectedBackground),
       removeItem(STORAGE_KEYS.selectedBackgroundTarget),
     ]).catch((error) => {
       console.warn('Error resetting preferences in AsyncStorage', error);
     });
-    setState({ wantsQuotes: undefined, favoriteAuthors: [], notificationTime: undefined, selectedBackground: undefined, selectedBackgroundTarget: undefined, loaded: true });
+    setState({ wantsQuotes: undefined, notificationTime: undefined, selectedBackground: undefined, selectedBackgroundTarget: undefined, loaded: true });
     cancelDailyQuoteNotification();
   }, []);
 
@@ -167,23 +132,21 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!state.loaded) return;
     if (!state.wantsQuotes) return;
     if (!state.notificationTime) return;
-    if (!state.favoriteAuthors.length) return;
 
-    scheduleDailyQuoteNotification(state.notificationTime, state.favoriteAuthors).catch((error) => {
+    scheduleDailyQuoteNotification(state.notificationTime).catch((error) => {
       console.warn('Failed to schedule daily notification', error);
     });
-  }, [state.loaded, state.wantsQuotes, state.notificationTime, state.favoriteAuthors]);
+  }, [state.loaded, state.wantsQuotes, state.notificationTime]);
 
   const value = useMemo<PreferencesContextValue>(
     () => ({
       ...state,
       setWantsQuotes,
-      setFavoriteAuthors,
       setNotificationTime,
       setSelectedBackground,
       reset,
     }),
-    [state, setFavoriteAuthors, setNotificationTime, setSelectedBackground, setWantsQuotes, reset],
+    [state, setNotificationTime, setSelectedBackground, setWantsQuotes, reset],
   );
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;

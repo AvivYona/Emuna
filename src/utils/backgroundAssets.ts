@@ -1,5 +1,6 @@
 import { Background } from '../api/types';
 import * as FileSystem from 'expo-file-system';
+import * as MediaLibrary from 'expo-media-library';
 
 const DEFAULT_EXTENSION = 'jpg';
 
@@ -39,19 +40,11 @@ function isModuleUnavailable(error: unknown) {
   return message.includes('ExpoMediaLibrary') || message.includes('native module');
 }
 
-async function loadMediaLibrary() {
-  try {
-    const module = await import('expo-media-library');
-    if (typeof module.getPermissionsAsync !== 'function') {
-      throw new Error(MODULE_UNAVAILABLE);
-    }
-    return module;
-  } catch (error) {
-    if (isModuleUnavailable(error)) {
-      throw new Error(MODULE_UNAVAILABLE);
-    }
-    throw error;
+function getMediaLibrary() {
+  if (typeof MediaLibrary.getPermissionsAsync !== 'function') {
+    throw new Error(MODULE_UNAVAILABLE);
   }
+  return MediaLibrary;
 }
 
 async function downloadRemoteImage(imageUrl: string): Promise<string> {
@@ -84,7 +77,7 @@ export async function ensureBackgroundLocalUri(background: Background): Promise<
 }
 
 export async function saveBackgroundToCameraRoll(background: Background): Promise<string> {
-  const mediaLibrary = await loadMediaLibrary();
+  const mediaLibrary = getMediaLibrary();
 
   let permissions;
   try {

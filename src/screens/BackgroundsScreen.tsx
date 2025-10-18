@@ -551,6 +551,7 @@ const styles = StyleSheet.create({
   notificationDescriptionBox: {
     backgroundColor: colors.card,
     borderRadius: spacing.lg,
+    textAlign: "left",
     padding: spacing.md,
     gap: spacing.xs,
   },
@@ -562,8 +563,8 @@ const styles = StyleSheet.create({
   },
   notificationDescriptionText: {
     fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: "left",
+    color: colors.textPrimary,
+    textAlign: "right",
     lineHeight: 22,
   },
   instructionsTitle: {

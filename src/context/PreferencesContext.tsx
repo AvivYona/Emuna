@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { STORAGE_KEYS, getBoolean, getString, removeItem, setBoolean, setString } from '../storage/preferencesStorage';
 import { cancelDailyQuoteNotification, scheduleDailyQuoteNotification } from '../utils/notifications';
+import { useShabbatRestriction } from '../context/ShabbatContext';
 
 type BackgroundTarget = 'home' | 'lock';
 
@@ -29,6 +30,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     selectedBackgroundTarget: undefined,
     loaded: false,
   });
+  const { restriction, loading: restrictionLoading } = useShabbatRestriction();
 
   useEffect(() => {
     let isMounted = true;
@@ -130,13 +132,29 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   useEffect(() => {
     if (!state.loaded) return;
-    if (!state.wantsQuotes) return;
-    if (!state.notificationTime) return;
+
+    if (!state.wantsQuotes || !state.notificationTime) {
+      cancelDailyQuoteNotification().catch((error) => {
+        console.warn('Failed to cancel scheduled notifications', error);
+      });
+      return;
+    }
+
+    if (restrictionLoading) {
+      return;
+    }
+
+    if (restriction) {
+      cancelDailyQuoteNotification().catch((error) => {
+        console.warn('Failed to cancel scheduled notifications', error);
+      });
+      return;
+    }
 
     scheduleDailyQuoteNotification(state.notificationTime).catch((error) => {
       console.warn('Failed to schedule daily notification', error);
     });
-  }, [state.loaded, state.wantsQuotes, state.notificationTime]);
+  }, [restriction, restrictionLoading, state.loaded, state.notificationTime, state.wantsQuotes]);
 
   const value = useMemo<PreferencesContextValue>(
     () => ({

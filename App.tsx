@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import * as Notifications from "expo-notifications";
 import { PreferencesProvider } from "./src/context/PreferencesContext";
+import { ShabbatRestrictionProvider } from "./src/context/ShabbatContext";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { colors } from "./src/theme";
 
@@ -33,9 +34,11 @@ export default function App() {
       style={{ flex: 1, backgroundColor: colors.background }}
     >
       <SafeAreaProvider>
-        <PreferencesProvider>
-          <RootNavigator />
-        </PreferencesProvider>
+        <ShabbatRestrictionProvider>
+          <PreferencesProvider>
+            <RootNavigator />
+          </PreferencesProvider>
+        </ShabbatRestrictionProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

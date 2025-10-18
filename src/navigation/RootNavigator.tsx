@@ -2,12 +2,14 @@ import React from "react";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { usePreferences } from "../context/PreferencesContext";
+import { useShabbatRestriction } from "../context/ShabbatContext";
 import { WelcomeScreen } from "../screens/WelcomeScreen";
 import { ScheduleScreen } from "../screens/ScheduleScreen";
 import { BackgroundsScreen } from "../screens/BackgroundsScreen";
 import { AdminLoginScreen } from "../screens/AdminLoginScreen";
 import { AdminScreen } from "../screens/AdminScreen";
 import { LoadingState } from "../components/LoadingState";
+import { ShabbatRestrictionScreen } from "../screens/ShabbatRestrictionScreen";
 import { colors } from "../theme";
 
 export type RootStackParamList = {
@@ -36,9 +38,18 @@ const navigationTheme = {
 
 export const RootNavigator = () => {
   const { loaded, wantsQuotes } = usePreferences();
+  const { loading: restrictionLoading, restriction } = useShabbatRestriction();
 
   if (!loaded) {
     return <LoadingState label="טוען העדפות..." />;
+  }
+
+  if (!restriction && restrictionLoading) {
+    return <LoadingState label="בודק זמינות..." />;
+  }
+
+  if (restriction) {
+    return <ShabbatRestrictionScreen loading={restrictionLoading} />;
   }
 
   const showOnboarding = wantsQuotes === undefined;

@@ -32,7 +32,30 @@ import {
   saveBackgroundToCameraRoll,
 } from "../utils/backgroundAssets";
 
-const handledNotificationIds = new Set<string>();
+const handledNotificationKeys = new Set<string>();
+
+const createNotificationHandleKey = (
+  response: Notifications.NotificationResponse,
+  description: string
+) => {
+  const identifier = response.notification.request.identifier ?? "unknown";
+  const responseTimestamp =
+    typeof response.date === "number"
+      ? response.date
+      : response.date instanceof Date
+      ? response.date.getTime()
+      : null;
+  const notificationTimestamp =
+    response.notification.date instanceof Date
+      ? response.notification.date.getTime()
+      : null;
+
+  return [
+    identifier,
+    responseTimestamp ?? notificationTimestamp ?? "no-timestamp",
+    description,
+  ].join("|");
+};
 
 export type BackgroundsScreenProps = NativeStackScreenProps<
   RootStackParamList,
@@ -76,7 +99,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const isProcessing = loadingAction !== null;
   const lastNotificationResponse = Notifications.useLastNotificationResponse();
   const isFocused = useIsFocused();
-  const handledNotificationIdRef = useRef<string | null>(null);
+  const handledNotificationKeyRef = useRef<string | null>(null);
   const focusTimestampRef = useRef<number>(Date.now());
 
   const loadBackgrounds = useCallback(async () => {
@@ -121,23 +144,35 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
       return;
     }
     const description = notification?.request.content.data?.description;
-    const notificationId = notification?.request.identifier;
+    if (
+      actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER ||
+      typeof description !== "string"
+    ) {
+      return;
+    }
+    const trimmedDescription = description.trim();
+    if (trimmedDescription.length === 0) {
+      return;
+    }
+
+    const notificationKey = createNotificationHandleKey(
+      lastNotificationResponse,
+      trimmedDescription
+    );
 
     if (
-      actionIdentifier === Notifications.DEFAULT_ACTION_IDENTIFIER &&
-      typeof description === "string" &&
-      description.trim().length > 0 &&
-      notificationId &&
-      handledNotificationIdRef.current !== notificationId &&
-      !handledNotificationIds.has(notificationId)
+      handledNotificationKeyRef.current === notificationKey ||
+      handledNotificationKeys.has(notificationKey)
     ) {
-      handledNotificationIds.add(notificationId);
-      handledNotificationIdRef.current = notificationId;
-      setNotificationDescription(description);
-      setPreviewBackground(null);
-      setTarget("home");
-      setModalVisible(true);
+      return;
     }
+
+    handledNotificationKeys.add(notificationKey);
+    handledNotificationKeyRef.current = notificationKey;
+    setNotificationDescription(trimmedDescription);
+    setPreviewBackground(null);
+    setTarget("home");
+    setModalVisible(true);
   }, [isFocused, lastNotificationResponse, wantsQuotes]);
 
   const handleSelectBackground = (background: Background) => {
@@ -564,7 +599,7 @@ const styles = StyleSheet.create({
   notificationDescriptionText: {
     fontSize: 15,
     color: colors.textPrimary,
-    textAlign: "right",
+    textAlign: "left",
     lineHeight: 22,
   },
   instructionsTitle: {

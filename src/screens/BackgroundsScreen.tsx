@@ -57,9 +57,8 @@ const createNotificationHandleKey = (
 ) => {
   const identifier = response.notification.request.identifier ?? "unknown";
   const responseTimestamp = getResponseTimestamp(response);
-  const rawNotificationDate = (
-    response.notification as { date?: unknown }
-  ).date;
+  const rawNotificationDate = (response.notification as { date?: unknown })
+    .date;
   let notificationTimestamp: number | null = null;
   if (typeof rawNotificationDate === "number") {
     notificationTimestamp = rawNotificationDate;

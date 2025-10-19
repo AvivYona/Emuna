@@ -49,7 +49,7 @@ export const RootNavigator = () => {
     return <ShabbatRestrictionScreen loading={restrictionLoading} />;
   }
 
-  const showOnboarding = true;
+  const showOnboarding = wantsQuotes === undefined;
 
   return (
     <NavigationContainer theme={navigationTheme}>

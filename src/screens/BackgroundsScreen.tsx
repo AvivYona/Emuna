@@ -547,13 +547,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "left",
+    textAlign: "center",
     marginBottom: spacing.sm,
   },
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: "left",
+    textAlign: "center",
     marginBottom: spacing.md,
   },
   listContent: {

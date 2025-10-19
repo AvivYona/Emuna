@@ -1,7 +1,13 @@
-import React from 'react';
-import { ActivityIndicator, ImageBackground, Pressable, StyleSheet, View } from 'react-native';
-import { Background } from '../api/types';
-import { colors, spacing } from '../theme';
+import React from "react";
+import {
+  ActivityIndicator,
+  ImageBackground,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
+import { Background } from "../api/types";
+import { colors, spacing } from "../theme";
 
 type Props = {
   item: Background;
@@ -18,7 +24,7 @@ export const BackgroundCard: React.FC<Props> = ({
 }) => {
   return (
     <Pressable
-      accessibilityRole='button'
+      accessibilityRole="button"
       disabled={loading}
       onPress={onSelect}
       style={({ pressed }) => [
@@ -33,10 +39,12 @@ export const BackgroundCard: React.FC<Props> = ({
         style={styles.image}
         imageStyle={styles.imageRadius}
       >
-        {selected ? <View style={styles.selectedOverlay} /> : null}
+        {selected ? (
+          <View pointerEvents="none" style={styles.selectedOverlay} />
+        ) : null}
         {loading ? (
           <View style={styles.loadingOverlay}>
-            <ActivityIndicator size='large' color={colors.background} />
+            <ActivityIndicator size="large" color={colors.background} />
           </View>
         ) : null}
       </ImageBackground>
@@ -50,7 +58,7 @@ const styles = StyleSheet.create({
     aspectRatio: 3 / 4,
     margin: spacing.sm,
     borderRadius: spacing.lg,
-    overflow: 'hidden',
+    overflow: "hidden",
     borderWidth: 1,
     borderColor: colors.divider,
   },
@@ -66,19 +74,24 @@ const styles = StyleSheet.create({
   },
   image: {
     flex: 1,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   imageRadius: {
     borderRadius: spacing.lg,
   },
   selectedOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(58, 32, 22, 0.35)',
+    position: "absolute",
+    top: spacing.xs,
+    right: spacing.xs,
+    bottom: spacing.xs,
+    left: spacing.xs,
+    borderRadius: spacing.lg,
+    borderColor: colors.accent,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(58, 32, 22, 0.35)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(58, 32, 22, 0.35)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

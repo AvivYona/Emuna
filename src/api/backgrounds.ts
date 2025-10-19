@@ -22,9 +22,16 @@ type HostedBackgroundApiRecord = BackgroundApiRecordBase & {
   imageUrl: string;
 };
 
+type LegacyBackgroundApiRecord = BackgroundApiRecordBase & {
+  filename: string;
+  id?: string;
+  _id?: string;
+};
+
 type BackgroundApiRecord =
   | BinaryBackgroundApiRecord
-  | HostedBackgroundApiRecord;
+  | HostedBackgroundApiRecord
+  | LegacyBackgroundApiRecord;
 
 const DEFAULT_CONTENT_TYPE = "image/jpeg";
 
@@ -48,8 +55,20 @@ function toDataUri(base64: string, contentType?: string): string {
   return `data:${mime};base64,${base64}`;
 }
 
+function isHostedBackgroundRecord(
+  record: BackgroundApiRecord
+): record is HostedBackgroundApiRecord {
+  return typeof (record as HostedBackgroundApiRecord).imageUrl === "string";
+}
+
+function isBinaryBackgroundRecord(
+  record: BackgroundApiRecord
+): record is BinaryBackgroundApiRecord {
+  return typeof (record as BinaryBackgroundApiRecord).data === "string";
+}
+
 function mapBackground(record: BackgroundApiRecord): Background | null {
-  if ("imageUrl" in record) {
+  if (isHostedBackgroundRecord(record)) {
     const { _id, imageUrl } = record;
 
     if (!_id || !imageUrl) {
@@ -69,7 +88,7 @@ function mapBackground(record: BackgroundApiRecord): Background | null {
     };
   }
 
-  if ("data" in record) {
+  if (isBinaryBackgroundRecord(record)) {
     const { id, data } = record;
 
     if (!id || !data) {

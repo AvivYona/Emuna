@@ -47,10 +47,6 @@ export const ScheduleScreen: React.FC<ScheduleScreenProps> = ({
     setNotificationTime(timeString);
     setWantsQuotes(true);
     await ensureNotificationsPermission();
-    if (timeString === "11:07") {
-      navigation.navigate("AdminLogin");
-      return;
-    }
     navigation.reset({ index: 0, routes: [{ name: "Backgrounds" }] });
   };
 

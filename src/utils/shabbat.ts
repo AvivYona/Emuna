@@ -222,16 +222,6 @@ export const fetchCurrentRestriction = async (
   const windowStart = new Date(referenceDate.getTime() - 3 * MS_IN_DAY);
   const windowEnd = new Date(referenceDate.getTime() + 5 * MS_IN_DAY);
 
-  const mockRestriction = {
-    reason: "shabbat" as const,
-    title: "שבת",
-    subtitle: "Shabbat",
-    start: new Date(),
-    end: new Date(Date.now() + 6 * 60 * 60 * 1000), // 6 hours from now
-  };
-
-  return { restriction: mockRestriction, nextCheckAfterMs: 3600000 };
-
   const calendar = await fetchCalendarWindow(windowStart, windowEnd);
   const items = calendar.items ?? [];
   const windows = buildRestrictionWindows(items);

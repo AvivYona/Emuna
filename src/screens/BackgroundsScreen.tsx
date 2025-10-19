@@ -94,6 +94,9 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const [loadingAction, setLoadingAction] = useState<
     null | "apply" | "save" | "share"
   >(null);
+  const [saveInstructionsVisible, setSaveInstructionsVisible] = useState(false);
+  const [saveInstructionsTarget, setSaveInstructionsTarget] =
+    useState<BackgroundTarget>("home");
 
   const isIOS = Platform.OS === "ios";
   const isProcessing = loadingAction !== null;
@@ -231,27 +234,21 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     if (loadingAction) return;
 
     setLoadingAction("save");
-    try {
-      await saveBackgroundToCameraRoll(previewBackground);
-      setSelectedBackground(previewBackground._id, target);
-      handleCloseModal(true);
+    const backgroundToSave = previewBackground;
+    const appliedTarget = target;
 
-      if (isIOS) {
-        Alert.alert(
-          "הרקע נשמר",
-          [
-            "הרקע נשמר לאלבום התמונות.",
-            "",
-            "כך תגדירו אותו כרקע:",
-            "1. פתחו את אפליקציית התמונות.",
-            "2. בחרו את הרקע ששמרתם הרגע.",
-            "3. הקישו על שיתוף > השתמש כרקע.",
-            target === "lock"
-              ? "4. בחרו במסך הנעילה ואשרו."
-              : "4. בחרו במסך הבית ואשרו.",
-          ].join("\n")
-        );
-      } else {
+    if (isIOS) {
+      setSaveInstructionsTarget(appliedTarget);
+      setSaveInstructionsVisible(true);
+      handleCloseModal(true);
+    }
+
+    try {
+      await saveBackgroundToCameraRoll(backgroundToSave);
+      setSelectedBackground(backgroundToSave._id, appliedTarget);
+
+      if (!isIOS) {
+        handleCloseModal(true);
         Alert.alert(
           "הרקע נשמר",
           "הרקע נשמר לאלבום התמונות. ניתן להגדיר אותו כרקע דרך הגדרות המכשיר."
@@ -259,6 +256,14 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
       }
     } catch (error) {
       console.warn("Error saving background", error);
+
+      if (isIOS) {
+        setSaveInstructionsVisible(false);
+        setPreviewBackground(backgroundToSave);
+        setTarget(appliedTarget);
+        setModalVisible(true);
+      }
+
       if (error instanceof Error) {
         if (error.message === BACKGROUND_ASSET_ERRORS.permissionDenied) {
           Alert.alert(
@@ -311,11 +316,16 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     navigation.navigate("Welcome", {
       startAtSchedule: true,
       showPicker: true,
+      returnTo: "Backgrounds",
     });
   };
 
   const handleEnableQuotes = () => {
-    navigation.navigate("Welcome", { startAtSchedule: true, showPicker: true });
+    navigation.navigate("Welcome", {
+      startAtSchedule: true,
+      showPicker: true,
+      returnTo: "Backgrounds",
+    });
   };
 
   const handleDisableQuotes = () => {
@@ -332,9 +342,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const renderHeader = () => (
     <GlassCard style={styles.headerCard}>
       <Text style={styles.heading}>ספריית הרקעים</Text>
-      <Text style={styles.subtitle}>
-        החלק ובחר רקע שמעצים אותך. ההגדרות שלך נשמרות אוטומטית.
-      </Text>
+      <Text style={styles.subtitle}>החלק ובחר רקע שמעצים אותך.</Text>
       {wantsQuotes ? (
         <View style={styles.summaryBox}>
           <Text style={styles.summaryTitle}>התזכורת היומית שלך</Text>
@@ -490,6 +498,46 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
           }
         />
       </ScreenContainer>
+      <Modal
+        visible={saveInstructionsVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setSaveInstructionsVisible(false)}
+      >
+        <View style={styles.alertOverlay}>
+          <Pressable
+            style={styles.alertBackdrop}
+            onPress={() => setSaveInstructionsVisible(false)}
+          >
+            <View />
+          </Pressable>
+          <View style={styles.alertCard}>
+            <Text style={styles.alertTitle}>הרקע נשמר</Text>
+            <Text style={styles.alertMessage}>
+              {"הרקע נשמר לאלבום התמונות. כך תגדירו אותו כרקע:"}
+            </Text>
+            <Text style={styles.alertMessage}>
+              {"1. פתחו את אפליקציית התמונות."}
+            </Text>
+            <Text style={styles.alertMessage}>
+              {"2. בחרו את הרקע ששמרתם הרגע."}
+            </Text>
+            <Text style={styles.alertMessage}>
+              {"3. הקישו על שיתוף > השתמש כרקע."}
+            </Text>
+            <Text style={styles.alertMessage}>
+              {saveInstructionsTarget === "lock"
+                ? "4. בחרו במסך הנעילה ואשרו."
+                : "4. בחרו במסך הבית ואשרו."}
+            </Text>
+            <PrimaryButton
+              label="סגירה"
+              variant="secondary"
+              onPress={() => setSaveInstructionsVisible(false)}
+            />
+          </View>
+        </View>
+      </Modal>
     </>
   );
 };
@@ -527,13 +575,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: colors.textPrimary,
-    textAlign: "left",
+    textAlign: "center",
     marginBottom: spacing.xs,
   },
   summaryText: {
-    fontSize: 16,
+    fontSize: 18,
     color: colors.textSecondary,
-    textAlign: "left",
+    textAlign: "center",
   },
   summaryButton: {
     marginTop: spacing.md,
@@ -557,6 +605,38 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.24,
     shadowRadius: 16,
+  },
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(58, 32, 22, 0.6)",
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
+  },
+  alertBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  alertCard: {
+    borderRadius: spacing.xl,
+    backgroundColor: colors.background,
+    padding: spacing.lg,
+    gap: spacing.md,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.24,
+    shadowRadius: 16,
+  },
+  alertTitle: {
+    fontSize: 22,
+    fontWeight: "700",
+    color: colors.textPrimary,
+    textAlign: "left",
+  },
+  alertMessage: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: "left",
+    lineHeight: 22,
   },
   modalTitle: {
     fontSize: 20,

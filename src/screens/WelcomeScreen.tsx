@@ -24,13 +24,11 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   navigation,
   route,
 }) => {
-  const {
-    notificationTime,
-    setWantsQuotes,
-    setNotificationTime,
-  } = usePreferences();
+  const { notificationTime, setWantsQuotes, setNotificationTime } =
+    usePreferences();
   const startAtSchedule = route.params?.startAtSchedule ?? false;
   const forceShowPicker = route.params?.showPicker;
+  const returnTo = route.params?.returnTo;
   const [step, setStep] = useState<Step>(
     startAtSchedule ? "schedule" : "intro"
   );
@@ -102,6 +100,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
     }
   };
 
+  const handleBack = () => {
+    if (returnTo && navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    setStep("intro");
+  };
+
   const handleSaveTime = async () => {
     if (saving) return;
     setSaving(true);
@@ -114,10 +120,6 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         console.warn("Notification permission request failed", error);
       }
       setWantsQuotes(true);
-      if (timeString === "11:07") {
-        navigation.navigate("AdminLogin");
-        return;
-      }
       navigation.reset({ index: 0, routes: [{ name: "Backgrounds" }] });
     } finally {
       setSaving(false);
@@ -131,7 +133,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <>
             <Text style={styles.heading}>ברוכים הבאים לאמונה</Text>
             <Text style={styles.body}>
-              אנחנו כאן כדי להזכיר לך רגע של השראה בכל יום מחדש. האם תרצה לקבל
+              אנחנו כאן כדי להזכיר לך רגע של אמונה בכל יום מחדש. האם תרצה לקבל
               ציטוט יומי מותאם עבורך?
             </Text>
             <PrimaryButton label="כן, שלחו לי ציטוטים" onPress={handleAccept} />
@@ -179,7 +181,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             />
             <PrimaryButton
               label="חזרה"
-              onPress={() => setStep("intro")}
+              onPress={handleBack}
               variant="secondary"
               disabled={saving}
             />

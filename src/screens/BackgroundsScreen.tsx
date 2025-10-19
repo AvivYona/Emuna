@@ -34,21 +34,38 @@ import {
 
 const handledNotificationKeys = new Set<string>();
 
+type NotificationResponseWithDate = Notifications.NotificationResponse & {
+  date?: number | Date;
+};
+
+const getResponseTimestamp = (
+  response: Notifications.NotificationResponse
+): number | null => {
+  const rawDate = (response as NotificationResponseWithDate).date;
+  if (typeof rawDate === "number") {
+    return rawDate;
+  }
+  if (rawDate instanceof Date) {
+    return rawDate.getTime();
+  }
+  return null;
+};
+
 const createNotificationHandleKey = (
   response: Notifications.NotificationResponse,
   description: string
 ) => {
   const identifier = response.notification.request.identifier ?? "unknown";
-  const responseTimestamp =
-    typeof response.date === "number"
-      ? response.date
-      : response.date instanceof Date
-      ? response.date.getTime()
-      : null;
-  const notificationTimestamp =
-    response.notification.date instanceof Date
-      ? response.notification.date.getTime()
-      : null;
+  const responseTimestamp = getResponseTimestamp(response);
+  const rawNotificationDate = (
+    response.notification as { date?: unknown }
+  ).date;
+  let notificationTimestamp: number | null = null;
+  if (typeof rawNotificationDate === "number") {
+    notificationTimestamp = rawNotificationDate;
+  } else if (rawNotificationDate instanceof Date) {
+    notificationTimestamp = rawNotificationDate.getTime();
+  }
 
   return [
     identifier,
@@ -133,13 +150,8 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
       return;
     }
 
-    const { notification, actionIdentifier, date } = lastNotificationResponse;
-    const responseTimestamp =
-      typeof date === "number"
-        ? date
-        : date instanceof Date
-        ? date.getTime()
-        : null;
+    const { notification, actionIdentifier } = lastNotificationResponse;
+    const responseTimestamp = getResponseTimestamp(lastNotificationResponse);
     if (
       responseTimestamp !== null &&
       responseTimestamp <= focusTimestampRef.current

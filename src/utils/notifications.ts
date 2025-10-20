@@ -40,14 +40,16 @@ export async function scheduleDailyQuoteNotification(time: string) {
       return;
     }
 
-    const body = `${quote.quote}\n— ${quote.author.name}`;
+    const body = `${quote.quote}\n ${quote.author.name}`;
 
     await Notifications.scheduleNotificationAsync({
       content: {
         title: "אמונה",
         body,
         sound: true,
-        data: quote.description ? { description: quote.description } : undefined,
+        data: quote.description
+          ? { description: quote.description }
+          : undefined,
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,

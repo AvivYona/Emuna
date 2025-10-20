@@ -106,13 +106,15 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const [notificationDescription, setNotificationDescription] = useState<
     string | null
   >(null);
+  const [notificationQuote, setNotificationQuote] = useState<string | null>(
+    null
+  );
   const [target, setTarget] = useState<BackgroundTarget>("home");
   const [loadingAction, setLoadingAction] = useState<
     null | "apply" | "save" | "share"
   >(null);
   const [saveInstructionsVisible, setSaveInstructionsVisible] = useState(false);
-  const [saveInstructionsTarget, setSaveInstructionsTarget] =
-    useState<BackgroundTarget>("home");
+  const [sharingQuote, setSharingQuote] = useState(false);
 
   const isIOS = Platform.OS === "ios";
   const isProcessing = loadingAction !== null;
@@ -158,6 +160,10 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
       return;
     }
     const description = notification?.request.content.data?.description;
+    const quote =
+      notification?.request.content.body ??
+      notification?.request.content.title ??
+      null;
     if (
       actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER ||
       typeof description !== "string"
@@ -184,9 +190,11 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     handledNotificationKeys.add(notificationKey);
     handledNotificationKeyRef.current = notificationKey;
     setNotificationDescription(trimmedDescription);
+    setNotificationQuote(quote ? quote.trim() : null);
     setPreviewBackground(null);
     setTarget("home");
     setModalVisible(true);
+    setSharingQuote(false);
   }, [isFocused, lastNotificationResponse, wantsQuotes]);
 
   const handleSelectBackground = (background: Background) => {
@@ -196,6 +204,8 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
         : "home";
 
     setPreviewBackground(background);
+    setNotificationDescription(null);
+    setNotificationQuote(null);
     setTarget(initialTarget);
     setModalVisible(true);
   };
@@ -207,6 +217,8 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     setModalVisible(false);
     setPreviewBackground(null);
     setNotificationDescription(null);
+    setNotificationQuote(null);
+    setSharingQuote(false);
     setTarget("home");
   };
 
@@ -249,7 +261,6 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     const appliedTarget = target;
 
     if (isIOS) {
-      setSaveInstructionsTarget(appliedTarget);
       setSaveInstructionsVisible(true);
       handleCloseModal(true);
     }
@@ -320,6 +331,31 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
       );
     } finally {
       setLoadingAction(null);
+    }
+  };
+
+  const handleShareNotification = async () => {
+    if (!notificationDescription && !notificationQuote) return;
+    if (sharingQuote) return;
+
+    setSharingQuote(true);
+    try {
+      const combined = [notificationQuote ?? "", notificationDescription ?? ""]
+        .map((part) => (part ? part.trim() : ""))
+        .filter(Boolean)
+        .join("\n\n");
+
+      await Share.share({
+        message: combined || "ציטוט מאמונה",
+      });
+    } catch (error) {
+      console.warn("Error sharing notification quote", error);
+      Alert.alert(
+        "שגיאה בשיתוף הציטוט",
+        "לא הצלחנו לשתף את הציטוט. נסו שוב מאוחר יותר."
+      );
+    } finally {
+      setSharingQuote(false);
     }
   };
 
@@ -411,28 +447,8 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
                     source={{ uri: previewBackground.imageUrl }}
                     style={styles.modalImage}
                     imageStyle={styles.modalImageRadius}
-                  >
-                    <View style={styles.modalImageOverlay} />
-                  </ImageBackground>
-                  {isIOS ? (
-                    <View style={styles.instructions}>
-                      <Text style={styles.instructionsTitle}>
-                        איך להגדיר את הרקע
-                      </Text>
-                      <Text style={styles.instructionsItem}>
-                        1. פתחו את אפליקציית התמונות.
-                      </Text>
-                      <Text style={styles.instructionsItem}>
-                        2. בחרו את הרקע ששמרתם הרגע.
-                      </Text>
-                      <Text style={styles.instructionsItem}>
-                        3. הקישו על שיתוף › השתמש כרקע.
-                      </Text>
-                      <Text style={styles.instructionsItem}>
-                        4. אשרו למסך המתאים.
-                      </Text>
-                    </View>
-                  ) : null}
+                  />
+
                   <PrimaryButton
                     label={
                       isIOS
@@ -467,9 +483,20 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
                 </>
               ) : notificationDescription ? (
                 <View style={styles.notificationDescriptionBox}>
+                  {notificationQuote ? (
+                    <Text style={styles.notificationQuoteText}>
+                      {notificationQuote}
+                    </Text>
+                  ) : null}
                   <Text style={styles.notificationDescriptionText}>
                     {notificationDescription}
                   </Text>
+                  <PrimaryButton
+                    label="שיתוף הציטוט"
+                    onPress={handleShareNotification}
+                    loading={sharingQuote}
+                    disabled={sharingQuote}
+                  />
                 </View>
               ) : null}
               <PrimaryButton
@@ -537,9 +564,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
               {"3. הקישו על שיתוף > השתמש כרקע."}
             </Text>
             <Text style={styles.alertMessage}>
-              {saveInstructionsTarget === "lock"
-                ? "4. בחרו במסך הנעילה ואשרו."
-                : "4. בחרו במסך הבית ואשרו."}
+              {"4. בחרו במסך הבית/מסך הנעילה ואשרו."}
             </Text>
             <PrimaryButton
               label="סגירה"
@@ -656,7 +681,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   modalImage: {
-    height: 240,
+    height: 400,
     borderRadius: spacing.lg,
     overflow: "hidden",
     justifyContent: "flex-end",
@@ -664,10 +689,7 @@ const styles = StyleSheet.create({
   modalImageRadius: {
     borderRadius: spacing.lg,
   },
-  modalImageOverlay: {
-    height: 80,
-    backgroundColor: "rgba(58, 32, 22, 0.45)",
-  },
+
   instructions: {
     backgroundColor: colors.card,
     borderRadius: spacing.lg,
@@ -680,6 +702,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
     padding: spacing.md,
     gap: spacing.xs,
+  },
+  notificationQuoteText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.textPrimary,
+    textAlign: "center",
   },
   notificationDescriptionTitle: {
     fontSize: 16,

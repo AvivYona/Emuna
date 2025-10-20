@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: colors.textSecondary,
-    textAlign: "left",
+    textAlign: "center",
     marginBottom: spacing.lg,
   },
   pickerWrapper: {
@@ -125,14 +125,14 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: "700",
     color: colors.textPrimary,
-    textAlign: "left",
+    textAlign: "center",
     width: "100%",
   },
   timeHelper: {
     fontSize: 14,
     color: colors.textSecondary,
     marginTop: spacing.xs,
-    textAlign: "left",
+    textAlign: "center",
     width: "100%",
   },
 });

@@ -11,13 +11,10 @@ export const CreateBackgroundCard: React.FC<Props> = ({ onPress }) => {
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        pressed ? styles.pressed : null,
-      ]}
+      style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
     >
       <View style={styles.content}>
-        <Text style={styles.label}>לחץ כאן ליצור רקע אישי״</Text>
+        <Text style={styles.label}>לחץ כאן ליצור רקע אישי</Text>
       </View>
     </Pressable>
   );

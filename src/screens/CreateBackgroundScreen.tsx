@@ -1,16 +1,12 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
+  Modal,
   PanResponder,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -36,8 +32,6 @@ type CreateBackgroundScreenProps = NativeStackScreenProps<
   "CreateBackground"
 >;
 
-type ActiveTab = "backgrounds" | "quotes";
-
 type Position = {
   x: number;
   y: number;
@@ -47,6 +41,7 @@ type EditableText = {
   id: string;
   content: string;
   fontSize: number;
+  fontFamily: string;
   color: string;
   position: Position;
 };
@@ -57,12 +52,86 @@ type DraggableTextProps = {
   onSelect(id: string): void;
   onMove(id: string, position: Position): void;
   onEdit(id: string): void;
+  onResize(id: string, nextSize: number): void;
   canvasWidth: number;
   canvasHeight: number;
 };
 
-const textBoundaryMargin = 40;
-const QUOTE_CARD_HEIGHT = 100;
+type TextPanel = "font" | "color" | "size" | null;
+
+const TEXT_ICON_BAR_WIDTH = 40;
+const BACKGROUND_ICON_BAR_WIDTH = 40;
+const MIN_FONT_SIZE = 14;
+const MAX_FONT_SIZE = 110;
+const TEXT_BOUNDARY_MARGIN = 48;
+
+const FONT_OPTIONS: Array<{ label: string; value: string }> = [
+  {
+    label: "אלגנטי",
+    value: Platform.select({
+      ios: "Georgia",
+      android: "serif",
+      default: "serif",
+    }) as string,
+  },
+  {
+    label: "מודרני",
+    value:
+      Platform.select({
+        ios: "Avenir Next",
+        android: "sans-serif-medium",
+        default: "System",
+      }) ?? "System",
+  },
+  {
+    label: "כתב יד",
+    value: Platform.select({
+      ios: "Snell Roundhand",
+      android: "casual",
+      default: "cursive",
+    }) as string,
+  },
+  {
+    label: "קלאסי",
+    value: Platform.select({
+      ios: "Times New Roman",
+      android: "serif",
+      default: "serif",
+    }) as string,
+  },
+];
+
+const COLOR_SWATCHES = [
+  "#3A2016",
+  "#8C4A35",
+  "#B98568",
+  "#FFFFFF",
+  "#2D4B73",
+  "#3FA796",
+  "#C94C4C",
+];
+
+const TEXT_ICON_BUTTONS: Array<{
+  key: "add" | "quotes" | "font" | "color" | "size" | "delete";
+  label: string;
+  icon: string;
+}> = [
+  { key: "add", label: "הוספת טקסט", icon: "＋" },
+  { key: "quotes", label: "ציטוטים", icon: "📜" },
+  { key: "font", label: "גופנים", icon: "A" },
+  { key: "color", label: "צבע", icon: "🎨" },
+  { key: "size", label: "גודל", icon: "↕" },
+  { key: "delete", label: "מחיקה", icon: "🗑️" },
+];
+
+const BACKGROUND_ICON_BUTTONS: Array<{
+  key: "gallery" | "import";
+  label: string;
+  icon: string;
+}> = [
+  { key: "gallery", label: "רקעים של אמונה", icon: "🖼️" },
+  { key: "import", label: "ייבוא מהטלפון", icon: "📱" },
+];
 
 const DraggableText: React.FC<DraggableTextProps> = ({
   item,
@@ -70,20 +139,26 @@ const DraggableText: React.FC<DraggableTextProps> = ({
   onSelect,
   onMove,
   onEdit,
+  onResize,
   canvasWidth,
   canvasHeight,
 }) => {
-  const startPosition = useRef(item.position);
-  const lastTapRef = useRef<number>(0);
+  const startPositionRef = React.useRef(item.position);
+  const lastTapRef = React.useRef<number>(0);
+  const initialFontRef = React.useRef(item.fontSize);
 
   useEffect(() => {
-    startPosition.current = item.position;
+    startPositionRef.current = item.position;
   }, [item.position]);
+
+  useEffect(() => {
+    initialFontRef.current = item.fontSize;
+  }, [item.fontSize]);
 
   const clampPosition = useCallback(
     (position: Position): Position => {
-      const maxX = Math.max(0, canvasWidth - textBoundaryMargin);
-      const maxY = Math.max(0, canvasHeight - textBoundaryMargin);
+      const maxX = Math.max(0, canvasWidth - TEXT_BOUNDARY_MARGIN);
+      const maxY = Math.max(0, canvasHeight - TEXT_BOUNDARY_MARGIN);
       return {
         x: Math.max(0, Math.min(position.x, maxX)),
         y: Math.max(0, Math.min(position.y, maxY)),
@@ -92,25 +167,25 @@ const DraggableText: React.FC<DraggableTextProps> = ({
     [canvasHeight, canvasWidth]
   );
 
-  const panResponder = useMemo(
+  const moveResponder = useMemo(
     () =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onPanResponderGrant: () => {
           onSelect(item.id);
-          startPosition.current = item.position;
+          startPositionRef.current = item.position;
         },
         onPanResponderMove: (_, gestureState) => {
           const nextPosition = clampPosition({
-            x: startPosition.current.x + gestureState.dx,
-            y: startPosition.current.y + gestureState.dy,
+            x: startPositionRef.current.x + gestureState.dx,
+            y: startPositionRef.current.y + gestureState.dy,
           });
           onMove(item.id, nextPosition);
         },
         onPanResponderRelease: (_, gestureState) => {
           const nextPosition = clampPosition({
-            x: startPosition.current.x + gestureState.dx,
-            y: startPosition.current.y + gestureState.dy,
+            x: startPositionRef.current.x + gestureState.dx,
+            y: startPositionRef.current.y + gestureState.dy,
           });
           onMove(item.id, nextPosition);
           const isTap =
@@ -126,7 +201,35 @@ const DraggableText: React.FC<DraggableTextProps> = ({
           }
         },
       }),
-    [clampPosition, item.id, onEdit, onMove, onSelect]
+    [clampPosition, item.id, item.position, onEdit, onMove, onSelect]
+  );
+
+  const resizeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => {
+          initialFontRef.current = item.fontSize;
+          onSelect(item.id);
+        },
+        onPanResponderMove: (_, gestureState) => {
+          const delta = Math.max(gestureState.dx, gestureState.dy);
+          const next = Math.max(
+            MIN_FONT_SIZE,
+            Math.min(MAX_FONT_SIZE, initialFontRef.current + delta * 0.35)
+          );
+          onResize(item.id, next);
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const delta = Math.max(gestureState.dx, gestureState.dy);
+          const next = Math.max(
+            MIN_FONT_SIZE,
+            Math.min(MAX_FONT_SIZE, initialFontRef.current + delta * 0.35)
+          );
+          onResize(item.id, next);
+        },
+      }),
+    [item.fontSize, item.id, onResize, onSelect]
   );
 
   return (
@@ -142,16 +245,25 @@ const DraggableText: React.FC<DraggableTextProps> = ({
             : "transparent",
         },
       ]}
-      {...panResponder.panHandlers}
+      {...moveResponder.panHandlers}
     >
       <Text
         style={[
           styles.draggableTextContent,
-          { fontSize: item.fontSize, color: item.color },
+          {
+            fontFamily: item.fontFamily,
+            fontSize: item.fontSize,
+            color: item.color,
+          },
         ]}
       >
         {item.content}
       </Text>
+      {selected ? (
+        <View style={styles.resizeHandleContainer}>
+          <View style={styles.resizeHandle} {...resizeResponder.panHandlers} />
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -184,30 +296,25 @@ const BackgroundOption: React.FC<BackgroundOptionProps> = ({
   );
 };
 
-type QuoteCardProps = {
-  quote: Quote;
-  onSelect(): void;
-};
-
-const QuoteCard: React.FC<QuoteCardProps> = ({ quote, onSelect }) => {
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.quoteCard,
-        pressed ? styles.quoteCardPressed : null,
-      ]}
-      onPress={onSelect}
-    >
-      <Text style={styles.quoteText}>{quote.quote}</Text>
-      <Text style={styles.quoteAuthor}>{quote.author.name}</Text>
-    </Pressable>
-  );
-};
+const QuoteCard: React.FC<{ quote: Quote; onSelect(): void }> = ({
+  quote,
+  onSelect,
+}) => (
+  <Pressable
+    style={({ pressed }) => [
+      styles.quoteCard,
+      pressed ? styles.quoteCardPressed : null,
+    ]}
+    onPress={onSelect}
+  >
+    <Text style={styles.quoteText}>{quote.quote}</Text>
+    <Text style={styles.quoteAuthor}>{quote.author.name}</Text>
+  </Pressable>
+);
 
 export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
   navigation,
 }) => {
-  const [activeTab, setActiveTab] = useState<ActiveTab>("backgrounds");
   const [cleanBackgrounds, setCleanBackgrounds] = useState<Background[]>([]);
   const [backgroundsLoading, setBackgroundsLoading] = useState(false);
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -220,31 +327,35 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
   const [selectedBackgroundId, setSelectedBackgroundId] = useState<
     string | null
   >(null);
+  const [selectedGalleryBackgroundId, setSelectedGalleryBackgroundId] =
+    useState<string | null>(null);
   const [importedUri, setImportedUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [requestEditorFocus, setRequestEditorFocus] = useState(false);
-  const [isQuotesEditorOpen, setIsQuotesEditorOpen] = useState(false);
+  const [showQuoteLibrary, setShowQuoteLibrary] = useState(false);
+  const [showBackgroundGallery, setShowBackgroundGallery] = useState(false);
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [activeTextPanel, setActiveTextPanel] = useState<TextPanel>(null);
 
-  const viewShotRef = useRef<ViewShot>(null);
-  const textInputRef = useRef<TextInput>(null);
+  const viewShotRef = React.useRef<ViewShot>(null);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
   const canvasDimensions = useMemo(() => {
-    const aspectRatio =
-      windowHeight > 0 && windowWidth > 0 ? windowHeight / windowWidth : 1.8;
-    const horizontalPadding = spacing.xl * 2;
-    const maxWidth = Math.max(200, windowWidth - horizontalPadding);
+    const phoneAspectRatio = 19.5 / 9;
+    const availableWidth =
+      windowWidth -
+      TEXT_ICON_BAR_WIDTH -
+      BACKGROUND_ICON_BAR_WIDTH -
+      spacing.xl * 2;
+    const maxWidth = Math.max(260, availableWidth);
     let width = maxWidth;
-    let height = width * aspectRatio;
-    const maxHeight = windowHeight * 0.48;
+    let height = width * phoneAspectRatio;
+    const maxHeight = windowHeight * 0.7;
     if (height > maxHeight) {
       height = maxHeight;
-      width = height / aspectRatio;
+      width = height / phoneAspectRatio;
     }
-    return {
-      width,
-      height,
-    };
+    return { width, height };
   }, [windowHeight, windowWidth]);
 
   const selectedText = useMemo(
@@ -255,10 +366,25 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
     [selectedTextId, texts]
   );
 
+  useEffect(() => {
+    if (!selectedText) {
+      setActiveTextPanel(null);
+    }
+  }, [selectedText]);
+
+  const updateText = useCallback(
+    (id: string, updater: (current: EditableText) => EditableText) => {
+      setTexts((items) =>
+        items.map((item) => (item.id === id ? updater(item) : item))
+      );
+    },
+    []
+  );
+
   const clampPosition = useCallback(
     (position: Position): Position => {
-      const maxX = Math.max(0, canvasDimensions.width - textBoundaryMargin);
-      const maxY = Math.max(0, canvasDimensions.height - textBoundaryMargin);
+      const maxX = Math.max(0, canvasDimensions.width - TEXT_BOUNDARY_MARGIN);
+      const maxY = Math.max(0, canvasDimensions.height - TEXT_BOUNDARY_MARGIN);
       return {
         x: Math.max(0, Math.min(position.x, maxX)),
         y: Math.max(0, Math.min(position.y, maxY)),
@@ -266,26 +392,6 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
     },
     [canvasDimensions.height, canvasDimensions.width]
   );
-
-  const openQuotesEditor = useCallback(() => {
-    setActiveTab("quotes");
-    setIsQuotesEditorOpen(true);
-  }, []);
-
-  const closeQuotesEditor = useCallback(() => {
-    setIsQuotesEditorOpen(false);
-    setRequestEditorFocus(false);
-  }, []);
-
-  const handlePressBackgroundTab = useCallback(() => {
-    setActiveTab("backgrounds");
-    setIsQuotesEditorOpen(false);
-  }, []);
-
-  const handlePressQuotesTab = useCallback(() => {
-    setActiveTab("quotes");
-    setIsQuotesEditorOpen(false);
-  }, []);
 
   const loadBackgrounds = useCallback(async () => {
     setBackgroundsLoading(true);
@@ -313,18 +419,15 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
 
   useEffect(() => {
     void loadBackgrounds();
-  }, [loadBackgrounds]);
-
-  useEffect(() => {
-    if (activeTab === "quotes" && !quotesLoading && quotes.length === 0) {
-      void loadQuotes();
-    }
-  }, [activeTab, loadQuotes, quotes.length, quotesLoading]);
+    void loadQuotes();
+  }, [loadBackgrounds, loadQuotes]);
 
   const handleSelectBackground = useCallback((background: Background) => {
     setCanvasBackgroundUri(background.imageUrl);
     setSelectedBackgroundId(background._id);
+    setSelectedGalleryBackgroundId(background._id);
     setImportedUri(null);
+    setShowBackgroundGallery(false);
   }, []);
 
   const handleImportBackground = useCallback(async () => {
@@ -343,6 +446,7 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
       setCanvasBackgroundUri(asset.uri);
       setImportedUri(asset.uri);
       setSelectedBackgroundId(null);
+      setShowBackgroundGallery(false);
     } catch (error) {
       console.warn("Error importing background", error);
     }
@@ -352,7 +456,7 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
     (quote: Quote) => {
       const id = `quote-${quote._id}-${Date.now()}`;
       const basePosition = clampPosition({
-        x: canvasDimensions.width * 0.15,
+        x: canvasDimensions.width * 0.1,
         y: canvasDimensions.height * 0.2,
       });
       setTexts((items) => [
@@ -360,101 +464,141 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
         {
           id,
           content: quote.quote,
-          fontSize: 28,
+          fontSize: 30,
+          fontFamily:
+            FONT_OPTIONS[0]?.value ??
+            (Platform.OS === "ios" ? "Georgia" : "serif"),
           color: colors.textPrimary,
           position: basePosition,
         },
       ]);
       setSelectedTextId(id);
-      setRequestEditorFocus(true);
-      openQuotesEditor();
+      setShowQuoteLibrary(false);
     },
-    [
-      canvasDimensions.height,
-      canvasDimensions.width,
-      clampPosition,
-      openQuotesEditor,
-    ]
+    [canvasDimensions.height, canvasDimensions.width, clampPosition]
   );
 
   const handleAddCustomText = useCallback(() => {
     const id = `custom-${Date.now()}`;
     const basePosition = clampPosition({
-      x: canvasDimensions.width * 0.25,
+      x: canvasDimensions.width * 0.2,
       y: canvasDimensions.height * 0.35,
     });
+    const content = "טקסט חדש";
+    const fontFamily =
+      FONT_OPTIONS[1]?.value ??
+      (Platform.OS === "ios" ? "Avenir Next" : "sans-serif-medium");
     setTexts((items) => [
       ...items,
       {
         id,
-        content: "טקסט חדש",
-        fontSize: 32,
+        content,
+        fontSize: 34,
+        fontFamily,
         color: colors.textPrimary,
         position: basePosition,
       },
     ]);
     setSelectedTextId(id);
-    setRequestEditorFocus(true);
-    openQuotesEditor();
-  }, [
-    canvasDimensions.height,
-    canvasDimensions.width,
-    clampPosition,
-    openQuotesEditor,
-  ]);
+    setEditingTextId(id);
+    setEditingValue(content);
+  }, [canvasDimensions.height, canvasDimensions.width, clampPosition]);
 
   const handleMoveText = useCallback(
     (id: string, position: Position) => {
-      setTexts((items) =>
-        items.map((item) =>
-          item.id === id ? { ...item, position: clampPosition(position) } : item
-        )
-      );
+      updateText(id, (item) => ({
+        ...item,
+        position: clampPosition(position),
+      }));
     },
-    [clampPosition]
+    [clampPosition, updateText]
   );
 
-  const handleChangeTextContent = useCallback((id: string, content: string) => {
-    setTexts((items) =>
-      items.map((item) => (item.id === id ? { ...item, content } : item))
-    );
-  }, []);
+  const handleChangeTextContent = useCallback(
+    (id: string, content: string) => {
+      updateText(id, (item) => ({
+        ...item,
+        content,
+      }));
+    },
+    [updateText]
+  );
 
-  const handleAdjustFontSize = useCallback((id: string, delta: number) => {
-    setTexts((items) =>
-      items.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              fontSize: Math.max(14, Math.min(72, item.fontSize + delta)),
-            }
-          : item
-      )
-    );
-  }, []);
+  const handleChangeFont = useCallback(
+    (id: string, fontFamily: string) => {
+      updateText(id, (item) => ({
+        ...item,
+        fontFamily,
+      }));
+    },
+    [updateText]
+  );
+
+  const handleChangeColor = useCallback(
+    (id: string, colorValue: string) => {
+      updateText(id, (item) => ({
+        ...item,
+        color: colorValue,
+      }));
+    },
+    [updateText]
+  );
+
+  const handleAdjustFontSize = useCallback(
+    (id: string, delta: number) => {
+      updateText(id, (item) => ({
+        ...item,
+        fontSize: Math.max(
+          MIN_FONT_SIZE,
+          Math.min(MAX_FONT_SIZE, item.fontSize + delta)
+        ),
+      }));
+    },
+    [updateText]
+  );
+
+  const handleResizeText = useCallback(
+    (id: string, nextSize: number) => {
+      updateText(id, (item) => ({
+        ...item,
+        fontSize: Math.max(
+          MIN_FONT_SIZE,
+          Math.min(MAX_FONT_SIZE, Math.round(nextSize))
+        ),
+      }));
+    },
+    [updateText]
+  );
 
   const handleRemoveText = useCallback((id: string) => {
     setTexts((items) => items.filter((item) => item.id !== id));
     setSelectedTextId((current) => (current === id ? null : current));
-    setIsQuotesEditorOpen(false);
   }, []);
 
-  useEffect(() => {
-    if (!selectedTextId) {
-      setRequestEditorFocus(false);
+  const handleStartEditing = useCallback(
+    (id: string) => {
+      const text = texts.find((item) => item.id === id);
+      if (!text) {
+        return;
+      }
+      setSelectedTextId(id);
+      setEditingTextId(id);
+      setEditingValue(text.content);
+    },
+    [texts]
+  );
+
+  const handleConfirmEdit = useCallback(() => {
+    if (!editingTextId) {
       return;
     }
-    if (requestEditorFocus) {
-      textInputRef.current?.focus?.();
-      setRequestEditorFocus(false);
-    }
-  }, [requestEditorFocus, selectedTextId]);
+    handleChangeTextContent(editingTextId, editingValue.trim());
+    setEditingTextId(null);
+  }, [editingTextId, editingValue, handleChangeTextContent]);
 
-  useEffect(() => {
-    if (!selectedText) {
-      setIsQuotesEditorOpen(false);
-    }
-  }, [selectedText]);
+  const handleCancelEdit = useCallback(() => {
+    setEditingTextId(null);
+  }, []);
 
   const handleSaveBackground = useCallback(async () => {
     if (saving) {
@@ -484,12 +628,16 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
       try {
         await FileSystem.makeDirectoryAsync(targetDir, { intermediates: true });
       } catch (error) {
-        // Directory may already exist; ignore the error.
+        // Directory may already exist; ignore.
       }
       const identifier = `custom-${Date.now()}`;
       const targetPath = `${targetDir}/${identifier}.jpg`;
       await FileSystem.copyAsync({ from: captureUri, to: targetPath });
-      await FileSystem.deleteAsync(captureUri, { idempotent: true });
+      try {
+        await FileSystem.deleteAsync(captureUri, { idempotent: true });
+      } catch (cleanupError) {
+        console.warn("Failed to delete captured temp file", cleanupError);
+      }
 
       const background: Background = {
         _id: identifier,
@@ -511,244 +659,478 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
     }
   }, [navigation, saving]);
 
-  const isImportedSelected =
-    importedUri !== null && canvasBackgroundUri === importedUri;
+  const handleBackToLibrary = useCallback(() => {
+    Alert.alert(
+      "לעזוב ללא שמירה",
+      "הרקע האישי לא יישמר. האם לחזור לספריית הרקעים?",
+      [
+        { text: "ביטול", style: "cancel" },
+        {
+          text: "חזרה",
+          style: "destructive",
+          onPress: () => navigation.goBack(),
+        },
+      ]
+    );
+  }, [navigation]);
 
-  return (
-    <ScreenContainer withScroll={false}>
-      <View style={styles.canvasWrapper}>
-        <ViewShot
-          ref={viewShotRef}
-          style={[
-            styles.canvasShot,
-            {
-              width: canvasDimensions.width,
-              height: canvasDimensions.height,
-            },
-          ]}
-          options={{ format: "jpg", quality: 0.92 }}
-        >
-          <View style={styles.canvas}>
-            <View style={styles.canvasBase} />
-            {canvasBackgroundUri ? (
-              <Image
-                source={{ uri: canvasBackgroundUri }}
-                style={styles.canvasImage}
-              />
-            ) : null}
-            {texts.map((text) => (
-              <DraggableText
-                key={text.id}
-                item={text}
-                selected={selectedTextId === text.id}
-                onSelect={setSelectedTextId}
-                onMove={handleMoveText}
-                onEdit={(id) => {
-                  setSelectedTextId(id);
-                  setRequestEditorFocus(true);
-                  openQuotesEditor();
-                }}
-                canvasWidth={canvasDimensions.width}
-                canvasHeight={canvasDimensions.height}
+  const handleConfirmGallerySelection = useCallback(() => {
+    if (!selectedGalleryBackgroundId) {
+      setShowBackgroundGallery(false);
+      return;
+    }
+    const background = cleanBackgrounds.find(
+      (item) => item._id === selectedGalleryBackgroundId
+    );
+    if (background) {
+      handleSelectBackground(background);
+    }
+    setShowBackgroundGallery(false);
+  }, [cleanBackgrounds, handleSelectBackground, selectedGalleryBackgroundId]);
+
+  const disableTextTools = !selectedText;
+
+  const renderTextPanel = () => {
+    if (!selectedText || !activeTextPanel) {
+      return null;
+    }
+    if (activeTextPanel === "font") {
+      return (
+        <View style={styles.floatingPanel}>
+          <Text style={styles.panelTitle}>בחירת גופן</Text>
+          {FONT_OPTIONS.map((option) => (
+            <Pressable
+              key={option.value}
+              style={({ pressed }) => [
+                styles.panelOption,
+                selectedText.fontFamily === option.value
+                  ? styles.panelOptionSelected
+                  : null,
+                pressed ? styles.panelOptionPressed : null,
+              ]}
+              onPress={() => handleChangeFont(selectedText.id, option.value)}
+            >
+              <Text
+                style={[styles.panelOptionLabel, { fontFamily: option.value }]}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          ))}
+          <Pressable
+            style={({ pressed }) => [
+              styles.panelCloseButton,
+              pressed ? styles.panelCloseButtonPressed : null,
+            ]}
+            onPress={() => setActiveTextPanel(null)}
+          >
+            <Text style={styles.panelCloseLabel}>סגירה</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    if (activeTextPanel === "color") {
+      return (
+        <View style={styles.floatingPanel}>
+          <Text style={styles.panelTitle}>צבע הטקסט</Text>
+          <View style={styles.colorRow}>
+            {COLOR_SWATCHES.map((colorValue) => (
+              <Pressable
+                key={colorValue}
+                style={[
+                  styles.colorSwatch,
+                  { backgroundColor: colorValue },
+                  selectedText.color === colorValue
+                    ? styles.colorSwatchSelected
+                    : null,
+                ]}
+                onPress={() => handleChangeColor(selectedText.id, colorValue)}
               />
             ))}
           </View>
-        </ViewShot>
-      </View>
-      <View style={styles.tabBar}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.tabButton,
-            activeTab === "backgrounds" ? styles.tabButtonActive : null,
-            pressed ? styles.tabButtonPressed : null,
-          ]}
-          onPress={handlePressBackgroundTab}
-        >
-          <Text
-            style={[
-              styles.tabLabel,
-              activeTab === "backgrounds" ? styles.tabLabelActive : null,
+          <Pressable
+            style={({ pressed }) => [
+              styles.panelCloseButton,
+              pressed ? styles.panelCloseButtonPressed : null,
             ]}
+            onPress={() => setActiveTextPanel(null)}
           >
-            רקעים
-          </Text>
-        </Pressable>
-        <Pressable
-          style={({ pressed }) => [
-            styles.tabButton,
-            activeTab === "quotes" ? styles.tabButtonActive : null,
-            pressed ? styles.tabButtonPressed : null,
-          ]}
-          onPress={handlePressQuotesTab}
-        >
-          <Text
-            style={[
-              styles.tabLabel,
-              activeTab === "quotes" ? styles.tabLabelActive : null,
-            ]}
-          >
-            ציטוטים
-          </Text>
-        </Pressable>
-      </View>
-      <View style={styles.panel}>
-        {activeTab === "backgrounds" ? (
-          <View style={styles.backgroundPanel}>
-            <Text style={styles.sectionTitle}>בחרו רקע מהאוסף שלנו</Text>
+            <Text style={styles.panelCloseLabel}>סגירה</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    if (activeTextPanel === "size") {
+      return (
+        <View style={styles.floatingPanel}>
+          <Text style={styles.panelTitle}>גודל הטקסט</Text>
+          <View style={styles.fontControls}>
             <Pressable
               style={({ pressed }) => [
-                styles.importButton,
-                isImportedSelected ? styles.importButtonActive : null,
-                pressed ? styles.importButtonPressed : null,
+                styles.fontButton,
+                pressed ? styles.fontButtonPressed : null,
               ]}
-              onPress={handleImportBackground}
+              onPress={() => handleAdjustFontSize(selectedText.id, -2)}
             >
-              <Text style={styles.importButtonText}>ייבוא רקע מהטלפון</Text>
+              <Text style={styles.fontButtonLabel}>A-</Text>
             </Pressable>
-            {backgroundsLoading ? (
-              <ActivityIndicator color={colors.accent} />
-            ) : (
-              <FlatList
-                data={cleanBackgrounds}
-                horizontal
-                keyExtractor={(item) => item._id}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.backgroundList}
-                renderItem={({ item }) => (
-                  <BackgroundOption
-                    background={item}
-                    selected={selectedBackgroundId === item._id}
-                    onSelect={() => handleSelectBackground(item)}
-                  />
-                )}
-              />
-            )}
-          </View>
-        ) : isQuotesEditorOpen && selectedText ? (
-          <View style={styles.quotesEditor}>
-            <View style={styles.quotesEditorHeader}>
-              <Pressable
-                accessibilityRole="button"
-                onPress={closeQuotesEditor}
-                style={({ pressed }) => [
-                  styles.quotesEditorBackButton,
-                  pressed ? styles.quotesEditorBackButtonPressed : null,
-                ]}
-              >
-                <Text style={styles.quotesEditorBackLabel}>
-                  בחירת ציטוט מוכן
-                </Text>
-              </Pressable>
-              <View style={styles.quotesEditorHeaderSpacer} />
-            </View>
-            <TextInput
-              ref={textInputRef}
-              value={selectedText.content}
-              onChangeText={(value) =>
-                handleChangeTextContent(selectedText.id, value)
-              }
-              multiline
-              placeholder="כתבו כאן את הטקסט שלכם..."
-              placeholderTextColor={colors.textSecondary}
-              style={styles.textInput}
-            />
-            <View style={styles.fontControls}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.fontButton,
-                  pressed ? styles.fontButtonPressed : null,
-                ]}
-                onPress={() => handleAdjustFontSize(selectedText.id, 2)}
-              >
-                <Text style={styles.fontButtonLabel}>A+</Text>
-              </Pressable>
-              <Text style={styles.fontSizeLabel}>
-                {`גודל ${Math.round(selectedText.fontSize)}`}
-              </Text>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.fontButton,
-                  pressed ? styles.fontButtonPressed : null,
-                ]}
-                onPress={() => handleAdjustFontSize(selectedText.id, -2)}
-              >
-                <Text style={styles.fontButtonLabel}>A-</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.removeTextButton,
-                  pressed ? styles.removeTextButtonPressed : null,
-                ]}
-                onPress={() => handleRemoveText(selectedText.id)}
-              >
-                <Text style={styles.removeTextButtonLabel}>מחק</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.quotesPanel}>
-            <Text style={styles.sectionTitle}>
-              בחרו ציטוט או הוסיפו טקסט אישי
+            <Text style={styles.fontSizeLabel}>
+              {Math.round(selectedText.fontSize)}
             </Text>
             <Pressable
               style={({ pressed }) => [
-                styles.addTextButton,
-                pressed ? styles.addTextButtonPressed : null,
+                styles.fontButton,
+                pressed ? styles.fontButtonPressed : null,
               ]}
-              onPress={handleAddCustomText}
+              onPress={() => handleAdjustFontSize(selectedText.id, 2)}
             >
-              <Text style={styles.addTextButtonLabel}>הוספת טקסט חדש</Text>
+              <Text style={styles.fontButtonLabel}>A+</Text>
             </Pressable>
+          </View>
+          <Text style={styles.helperText}>
+            ניתן גם לגרור את הידית בטקסט כדי לשנות גודל.
+          </Text>
+          <Pressable
+            style={({ pressed }) => [
+              styles.panelCloseButton,
+              pressed ? styles.panelCloseButtonPressed : null,
+            ]}
+            onPress={() => setActiveTextPanel(null)}
+          >
+            <Text style={styles.panelCloseLabel}>סגירה</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <ScreenContainer withScroll={false}>
+      <View style={styles.editorRow}>
+        <View style={[styles.iconBar, styles.iconBarLeft]}>
+          {TEXT_ICON_BUTTONS.map((button) => {
+            const disabled =
+              disableTextTools &&
+              ["font", "color", "size", "delete"].includes(button.key);
+            const handlePress = () => {
+              if (button.key === "add") {
+                handleAddCustomText();
+              } else if (button.key === "quotes") {
+                setShowQuoteLibrary(true);
+              } else if (!selectedText) {
+                return;
+              } else if (button.key === "font") {
+                setActiveTextPanel("font");
+              } else if (button.key === "color") {
+                setActiveTextPanel("color");
+              } else if (button.key === "size") {
+                setActiveTextPanel("size");
+              } else if (button.key === "delete" && selectedText) {
+                handleRemoveText(selectedText.id);
+              }
+            };
+            return (
+              <Pressable
+                key={button.key}
+                accessibilityLabel={button.label}
+                style={({ pressed }) => [
+                  styles.iconButton,
+                  disabled ? styles.iconButtonDisabled : null,
+                  pressed && !disabled ? styles.iconButtonPressed : null,
+                ]}
+                disabled={disabled}
+                onPress={handlePress}
+              >
+                <Text style={styles.iconLabel}>{button.icon}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.canvasSection}>
+          <ViewShot
+            ref={viewShotRef}
+            style={[
+              styles.canvasShot,
+              {
+                width: canvasDimensions.width,
+                height: canvasDimensions.height,
+              },
+            ]}
+            options={{ format: "jpg", quality: 0.92 }}
+          >
+            <View style={styles.canvas}>
+              <View style={styles.canvasBase} />
+              {canvasBackgroundUri ? (
+                <Image
+                  source={{ uri: canvasBackgroundUri }}
+                  style={styles.canvasImage}
+                />
+              ) : null}
+              {texts.map((text) => (
+                <DraggableText
+                  key={text.id}
+                  item={text}
+                  selected={selectedTextId === text.id}
+                  onSelect={(id) => {
+                    setSelectedTextId(id);
+                    setActiveTextPanel(null);
+                  }}
+                  onMove={handleMoveText}
+                  onEdit={handleStartEditing}
+                  onResize={handleResizeText}
+                  canvasWidth={canvasDimensions.width}
+                  canvasHeight={canvasDimensions.height}
+                />
+              ))}
+            </View>
+          </ViewShot>
+          {renderTextPanel()}
+        </View>
+
+        <View style={[styles.iconBar, styles.iconBarRight]}>
+          {BACKGROUND_ICON_BUTTONS.map((button) => {
+            const handlePress =
+              button.key === "gallery"
+                ? () => setShowBackgroundGallery(true)
+                : handleImportBackground;
+            return (
+              <Pressable
+                key={button.key}
+                accessibilityLabel={button.label}
+                style={({ pressed }) => [
+                  styles.iconButton,
+                  pressed ? styles.iconButtonPressed : null,
+                ]}
+                onPress={handlePress}
+              >
+                <Text style={styles.iconLabel}>{button.icon}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+      <View style={styles.footer}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={handleBackToLibrary}
+          style={({ pressed }) => [
+            styles.footerSecondaryButton,
+            pressed ? styles.footerSecondaryButtonPressed : null,
+          ]}
+        >
+          <Text style={styles.footerSecondaryLabel}>חזרה לספריית הרקעים</Text>
+        </Pressable>
+        <PrimaryButton
+          label="הרקע מוכן"
+          onPress={handleSaveBackground}
+          loading={saving}
+          disabled={saving}
+        />
+      </View>
+
+      <Modal
+        visible={showQuoteLibrary}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowQuoteLibrary(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>בחרו ציטוט</Text>
             {quotesLoading ? (
               <ActivityIndicator color={colors.accent} />
-            ) : quotes.length > 0 ? (
+            ) : (
               <FlatList
                 data={quotes}
                 keyExtractor={(item) => item._id}
-                style={styles.singleQuoteList}
-                contentContainerStyle={styles.quotesList}
+                contentContainerStyle={styles.modalList}
                 renderItem={({ item }) => (
                   <QuoteCard
                     quote={item}
                     onSelect={() => handleAddQuote(item)}
                   />
                 )}
-                showsVerticalScrollIndicator={false}
-                pagingEnabled
-                snapToInterval={QUOTE_CARD_HEIGHT + spacing.sm}
-                snapToAlignment="start"
-                decelerationRate="fast"
               />
-            ) : (
-              <Text style={styles.emptyQuotesMessage}>
-                לא הצלחנו לטעון ציטוטים כרגע. נסו שוב מאוחר יותר.
-              </Text>
             )}
+            <Pressable
+              style={({ pressed }) => [
+                styles.panelCloseButton,
+                pressed ? styles.panelCloseButtonPressed : null,
+              ]}
+              onPress={() => setShowQuoteLibrary(false)}
+            >
+              <Text style={styles.panelCloseLabel}>סגירה</Text>
+            </Pressable>
           </View>
-        )}
-      </View>
-      <PrimaryButton
-        label="הרקע מוכן"
-        onPress={handleSaveBackground}
-        loading={saving}
-        disabled={saving}
-      />
+        </View>
+      </Modal>
+      <Modal
+        visible={showBackgroundGallery}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBackgroundGallery(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>בחרו רקע נקי</Text>
+            {backgroundsLoading ? (
+              <ActivityIndicator color={colors.accent} />
+            ) : (
+              <FlatList
+                data={cleanBackgrounds}
+                keyExtractor={(item) => item._id}
+                numColumns={2}
+                columnWrapperStyle={styles.backgroundRow}
+                contentContainerStyle={styles.modalList}
+                renderItem={({ item }) => (
+                  <BackgroundOption
+                    background={item}
+                    selected={selectedGalleryBackgroundId === item._id}
+                    onSelect={() => setSelectedGalleryBackgroundId(item._id)}
+                  />
+                )}
+              />
+            )}
+            <View style={styles.modalActions}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.modalSecondaryButton,
+                  pressed ? styles.modalSecondaryButtonPressed : null,
+                ]}
+                onPress={() => setShowBackgroundGallery(false)}
+              >
+                <Text style={styles.modalSecondaryLabel}>ביטול</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.modalPrimaryButton,
+                  !selectedGalleryBackgroundId
+                    ? styles.modalPrimaryButtonDisabled
+                    : null,
+                  pressed && selectedGalleryBackgroundId
+                    ? styles.modalPrimaryButtonPressed
+                    : null,
+                ]}
+                disabled={!selectedGalleryBackgroundId}
+                onPress={handleConfirmGallerySelection}
+              >
+                <Text
+                  style={[
+                    styles.modalPrimaryLabel,
+                    !selectedGalleryBackgroundId
+                      ? styles.modalPrimaryLabelDisabled
+                      : null,
+                  ]}
+                >
+                  שמירה כרקע
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={editingTextId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelEdit}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.editModal}>
+            <Text style={styles.modalTitle}>עריכת טקסט</Text>
+            <TextInput
+              value={editingValue}
+              onChangeText={setEditingValue}
+              multiline
+              autoFocus
+              textAlignVertical="top"
+              placeholder="הקלידו את הטקסט שלכם..."
+              placeholderTextColor={colors.textSecondary}
+              style={styles.editModalInput}
+            />
+            <View style={styles.editModalActions}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.editModalButton,
+                  pressed ? styles.modalSecondaryButtonPressed : null,
+                ]}
+                onPress={handleCancelEdit}
+              >
+                <Text style={styles.modalSecondaryLabel}>ביטול</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.editModalButtonPrimary,
+                  pressed ? styles.editModalButtonPrimaryPressed : null,
+                ]}
+                onPress={handleConfirmEdit}
+              >
+                <Text style={styles.editModalButtonLabel}>שמירה</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 };
 
 const styles = StyleSheet.create({
-  canvasWrapper: {
+  editorRow: {
+    flex: 1,
+    flexDirection: "row",
+    width: "100%",
+    justifyContent: "space-between",
+  },
+  iconBar: {
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: spacing.md,
-    marginTop: 40,
+    gap: spacing.md,
+  },
+  iconBarLeft: {
+    width: TEXT_ICON_BAR_WIDTH,
+  },
+  iconBarRight: {
+    width: BACKGROUND_ICON_BAR_WIDTH,
+  },
+  iconButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.11,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  iconButtonPressed: {
+    opacity: 0.85,
+  },
+  iconButtonDisabled: {
+    opacity: 0.35,
+  },
+  iconLabel: {
+    fontSize: 22,
+  },
+  canvasSection: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+    gap: spacing.sm,
   },
   canvasShot: {
-    borderRadius: spacing.lg,
+    borderRadius: spacing.xl,
     overflow: "hidden",
     backgroundColor: "#FFFFFF",
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.divider,
   },
   canvas: {
@@ -762,204 +1144,100 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     resizeMode: "cover",
   },
-  draggableText: {
-    position: "absolute",
-    padding: spacing.xs,
-    borderWidth: 1.5,
-    borderRadius: spacing.sm,
-  },
-  draggableTextContent: {
-    color: colors.textPrimary,
-    textAlign: "center",
-  },
-  tabBar: {
-    flexDirection: "row",
-    backgroundColor: colors.card,
-    borderRadius: spacing.lg,
-    padding: spacing.xs,
-    marginBottom: spacing.md,
-  },
-  tabButton: {
-    flex: 1,
+  footer: {
+    flexDirection: "column",
+    justifyContent: "space-between",
     alignItems: "center",
-    justifyContent: "center",
+    width: "100%",
+    gap: spacing.sm,
+    marginBottom: 50,
+  },
+  footerSecondaryButton: {
     paddingVertical: spacing.sm,
-    borderRadius: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: spacing.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.accent,
   },
-  tabButtonActive: {
-    backgroundColor: colors.accent,
-  },
-  tabButtonPressed: {
+  footerSecondaryButtonPressed: {
     opacity: 0.85,
   },
-  tabLabel: {
-    fontSize: 16,
+  footerSecondaryLabel: {
+    color: colors.accent,
     fontWeight: "600",
-    color: colors.textSecondary,
-    textAlign: "center",
   },
-  tabLabelActive: {
-    color: colors.background,
-  },
-  panel: {
+  floatingPanel: {
+    position: "absolute",
+    top: spacing.lg,
+    left: spacing.lg,
+    width: 220,
     backgroundColor: colors.card,
     borderRadius: spacing.lg,
     padding: spacing.md,
-    marginBottom: spacing.md,
+    gap: spacing.sm,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 4,
   },
-  backgroundPanel: {
-    gap: spacing.md,
-    alignItems: "center",
-    alignSelf: "stretch",
+  panelTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.textPrimary,
+    textAlign: "center",
   },
-  backgroundList: {
-    paddingVertical: spacing.xs,
-  },
-  backgroundOption: {
-    width: 120,
-    aspectRatio: 3 / 4,
-    marginHorizontal: spacing.xs,
+  panelOption: {
+    borderWidth: 1,
+    borderColor: colors.divider,
     borderRadius: spacing.md,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "transparent",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.background,
   },
-  backgroundOptionPressed: {
+  panelOptionSelected: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSoft,
+  },
+  panelOptionPressed: {
     opacity: 0.85,
   },
-  backgroundOptionSelected: {
-    borderColor: colors.accent,
+  panelOptionLabel: {
+    color: colors.textPrimary,
+    textAlign: "center",
   },
-  backgroundOptionImage: {
-    width: "100%",
-    height: "100%",
-  },
-  importButton: {
+  panelCloseButton: {
     alignSelf: "center",
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
     borderRadius: spacing.lg,
+    backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.accent,
-    backgroundColor: "transparent",
   },
-  importButtonActive: {
-    backgroundColor: colors.accentSoft,
-  },
-  importButtonPressed: {
-    opacity: 0.8,
-  },
-  importButtonText: {
-    color: colors.accent,
-    fontWeight: "600",
-    fontSize: 15,
-    textAlign: "center",
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.textPrimary,
-    marginBottom: spacing.xs,
-    textAlign: "center",
-  },
-  quotesPanel: {
-    gap: spacing.md,
-    alignItems: "center",
-    alignSelf: "stretch",
-  },
-  addTextButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: spacing.lg,
-    backgroundColor: colors.accent,
-  },
-  addTextButtonPressed: {
+  panelCloseButtonPressed: {
     opacity: 0.85,
   },
-  addTextButtonLabel: {
-    color: colors.background,
+  panelCloseLabel: {
+    color: colors.accent,
     fontWeight: "600",
-    textAlign: "center",
   },
-  singleQuoteList: {
-    height: QUOTE_CARD_HEIGHT,
-    alignSelf: "stretch",
-  },
-  quotesList: {
-    gap: spacing.sm,
-    alignItems: "center",
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm,
-  },
-  quoteCard: {
-    padding: spacing.md,
-    borderRadius: spacing.md,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.divider,
-    marginBottom: spacing.sm,
-    alignItems: "center",
-    justifyContent: "center",
-    height: QUOTE_CARD_HEIGHT,
-    alignSelf: "stretch",
-  },
-  quoteCardPressed: {
-    opacity: 0.9,
-  },
-  quoteText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.textPrimary,
-    marginBottom: spacing.xs,
-    textAlign: "center",
-  },
-  quoteAuthor: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-  emptyQuotesMessage: {
-    color: colors.textSecondary,
-    textAlign: "center",
-  },
-  quotesEditor: {
-    backgroundColor: colors.card,
-    borderRadius: spacing.lg,
-    padding: spacing.md,
-    alignSelf: "stretch",
-    gap: spacing.md,
-  },
-  quotesEditorHeader: {
+  colorRow: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    justifyContent: "center",
   },
-  quotesEditorBackButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: spacing.lg,
-    backgroundColor: colors.card,
-    borderWidth: 1,
+  colorSwatch: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  colorSwatchSelected: {
     borderColor: colors.accent,
-  },
-  quotesEditorBackButtonPressed: {
-    opacity: 0.85,
-  },
-  quotesEditorBackLabel: {
-    color: colors.accent,
-    fontWeight: "600",
-  },
-  quotesEditorHeaderSpacer: {
-    width: spacing.md,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: colors.divider,
-    borderRadius: spacing.md,
-    padding: spacing.md,
-    minHeight: 72,
-    textAlign: "center",
-    color: colors.textPrimary,
   },
   fontControls: {
     flexDirection: "row",
@@ -971,9 +1249,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
     borderRadius: spacing.lg,
-    backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.accent,
+    backgroundColor: colors.card,
   },
   fontButtonPressed: {
     opacity: 0.85,
@@ -989,18 +1267,200 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
-  removeTextButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: spacing.lg,
-    backgroundColor: colors.danger,
+  helperText: {
+    color: colors.textSecondary,
+    fontSize: 12,
+    textAlign: "center",
   },
-  removeTextButtonPressed: {
+  draggableText: {
+    position: "absolute",
+    padding: spacing.xs,
+    borderWidth: 1.5,
+    borderRadius: spacing.sm,
+  },
+  draggableTextContent: {
+    textAlign: "center",
+  },
+  resizeHandleContainer: {
+    position: "absolute",
+    right: -spacing.xs,
+    bottom: -spacing.xs,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "rgba(58, 32, 22, 0.85)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  resizeHandle: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#FFFFFF",
+  },
+  backgroundOption: {
+    width: 110,
+    height: 150,
+    borderRadius: spacing.md,
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "transparent",
+    margin: spacing.xs,
+  },
+  backgroundOptionPressed: {
     opacity: 0.85,
   },
-  removeTextButtonLabel: {
+  backgroundOptionSelected: {
+    borderColor: colors.accent,
+  },
+  backgroundOptionImage: {
+    width: "100%",
+    height: "100%",
+  },
+  backgroundRow: {
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  quoteCard: {
+    padding: spacing.sm,
+    borderRadius: spacing.md,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    marginBottom: spacing.sm,
+  },
+  quoteCardPressed: {
+    opacity: 0.9,
+  },
+  quoteText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.textPrimary,
+    marginBottom: spacing.xs,
+    textAlign: "center",
+  },
+  quoteAuthor: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: "center",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 360,
+    maxHeight: "80%",
+    backgroundColor: colors.card,
+    borderRadius: spacing.lg,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  saveAsBackgroundButton: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: spacing.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    width: 50,
+    height: 50,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.textPrimary,
+    textAlign: "center",
+  },
+  modalList: {
+    paddingBottom: spacing.sm,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  modalSecondaryButton: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: spacing.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  modalSecondaryButtonPressed: {
+    opacity: 0.85,
+  },
+  modalSecondaryLabel: {
+    color: colors.accent,
+    fontWeight: "600",
+  },
+  modalPrimaryButton: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: spacing.lg,
+    backgroundColor: colors.accent,
+  },
+  modalPrimaryButtonPressed: {
+    opacity: 0.9,
+  },
+  modalPrimaryButtonDisabled: {
+    backgroundColor: colors.accentSoft,
+  },
+  modalPrimaryLabel: {
     color: colors.background,
     fontWeight: "600",
-    textAlign: "center",
+  },
+  modalPrimaryLabelDisabled: {
+    color: colors.textSecondary,
+  },
+  editModal: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: colors.card,
+    borderRadius: spacing.lg,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  editModalInput: {
+    minHeight: 120,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    borderRadius: spacing.lg,
+    padding: spacing.md,
+    color: colors.textPrimary,
+    backgroundColor: colors.background,
+  },
+  editModalActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  editModalButton: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: spacing.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.accent,
+  },
+  editModalButtonPrimary: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: spacing.lg,
+    backgroundColor: colors.accent,
+  },
+  editModalButtonPrimaryPressed: {
+    opacity: 0.9,
+  },
+  editModalButtonLabel: {
+    color: colors.background,
+    fontWeight: "600",
   },
 });

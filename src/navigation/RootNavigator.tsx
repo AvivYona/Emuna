@@ -6,6 +6,7 @@ import { useShabbatRestriction } from "../context/ShabbatContext";
 import { WelcomeScreen } from "../screens/WelcomeScreen";
 import { ScheduleScreen } from "../screens/ScheduleScreen";
 import { BackgroundsScreen } from "../screens/BackgroundsScreen";
+import { CreateBackgroundScreen } from "../screens/CreateBackgroundScreen";
 import { LoadingState } from "../components/LoadingState";
 import { ShabbatRestrictionScreen } from "../screens/ShabbatRestrictionScreen";
 import { colors } from "../theme";
@@ -19,7 +20,8 @@ export type RootStackParamList = {
       }
     | undefined;
   Schedule: undefined;
-  Backgrounds: undefined;
+  Backgrounds: { highlightBackgroundId?: string } | undefined;
+  CreateBackground: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -63,6 +65,10 @@ export const RootNavigator = () => {
         <Stack.Screen name="Welcome" component={WelcomeScreen} />
         <Stack.Screen name="Schedule" component={ScheduleScreen} />
         <Stack.Screen name="Backgrounds" component={BackgroundsScreen} />
+        <Stack.Screen
+          name="CreateBackground"
+          component={CreateBackgroundScreen}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

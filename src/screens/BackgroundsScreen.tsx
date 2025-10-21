@@ -1,7 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import * as Notifications from "expo-notifications";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { useIsFocused } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import {
   Alert,
   FlatList,
@@ -19,6 +25,7 @@ import { RootStackParamList } from "../navigation/RootNavigator";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { GlassCard } from "../components/GlassCard";
 import { BackgroundCard } from "../components/BackgroundCard";
+import { CreateBackgroundCard } from "../components/CreateBackgroundCard";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { colors, spacing } from "../theme";
 import { Background } from "../api/types";
@@ -31,6 +38,7 @@ import {
   ensureBackgroundLocalUri,
   saveBackgroundToCameraRoll,
 } from "../utils/backgroundAssets";
+import { getCustomBackgrounds } from "../storage/customBackgroundsStorage";
 
 const handledNotificationKeys = new Set<string>();
 
@@ -85,8 +93,13 @@ const TARGET_OPTIONS: Array<{ label: string; value: BackgroundTarget }> = [
   { label: "מסך הנעילה", value: "lock" },
 ];
 
+type BackgroundListItem =
+  | { type: "create" }
+  | { type: "background"; background: Background };
+
 export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   navigation,
+  route,
 }) => {
   const {
     selectedBackground,
@@ -115,6 +128,23 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   >(null);
   const [saveInstructionsVisible, setSaveInstructionsVisible] = useState(false);
   const [sharingQuote, setSharingQuote] = useState(false);
+  const [justCreatedBackgroundId, setJustCreatedBackgroundId] = useState<
+    string | null
+  >(null);
+
+  const backgroundItems = useMemo<BackgroundListItem[]>(() => {
+    return [
+      { type: "create" },
+      ...backgrounds.map((background) => ({
+        type: "background" as const,
+        background,
+      })),
+    ];
+  }, [backgrounds]);
+
+  const handleOpenCustomCreator = useCallback(() => {
+    navigation.navigate("CreateBackground");
+  }, [navigation]);
 
   const isIOS = Platform.OS === "ios";
   const isProcessing = loadingAction !== null;
@@ -126,16 +156,44 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const loadBackgrounds = useCallback(async () => {
     setRefreshing(true);
     try {
-      const result = await getBackgrounds();
-      setBackgrounds(result);
+      const [customItems, remoteItems] = await Promise.all([
+        getCustomBackgrounds(),
+        getBackgrounds(),
+      ]);
+      setBackgrounds([...customItems, ...remoteItems]);
     } finally {
       setRefreshing(false);
     }
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      void loadBackgrounds();
+    }, [loadBackgrounds])
+  );
+
   useEffect(() => {
-    loadBackgrounds();
-  }, [loadBackgrounds]);
+    const highlightId = route.params?.highlightBackgroundId;
+    if (!highlightId) {
+      return;
+    }
+    setJustCreatedBackgroundId(highlightId);
+    navigation.setParams({ highlightBackgroundId: undefined });
+  }, [navigation, route.params?.highlightBackgroundId]);
+
+  useEffect(() => {
+    if (!justCreatedBackgroundId) {
+      return;
+    }
+    Alert.alert(
+      "הרקע נשמר",
+      "הרקע האישי החדש שלך מחכה בראש ספריית הרקעים."
+    );
+    const timer = setTimeout(() => {
+      setJustCreatedBackgroundId(null);
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, [justCreatedBackgroundId]);
 
   useEffect(() => {
     if (isFocused) {
@@ -511,26 +569,40 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
       </Modal>
       <ScreenContainer withScroll={false}>
         <FlatList
-          data={backgrounds}
-          keyExtractor={(item) => item._id}
+          data={backgroundItems}
+          keyExtractor={(item) =>
+            item.type === "create"
+              ? "create-background-card"
+              : item.background._id
+          }
           numColumns={2}
           columnWrapperStyle={styles.row}
           contentContainerStyle={styles.listContent}
           ListHeaderComponent={renderHeader}
-          renderItem={({ item }) => (
-            <BackgroundCard
-              item={item}
-              selected={selectedBackground === item._id}
-              onSelect={() => handleSelectBackground(item)}
-              loading={
-                loadingAction !== null && previewBackground?._id === item._id
-              }
-            />
-          )}
+          renderItem={({ item }) =>
+            item.type === "create" ? (
+              <CreateBackgroundCard onPress={handleOpenCustomCreator} />
+            ) : (
+              <BackgroundCard
+                item={item.background}
+                selected={
+                  selectedBackground === item.background._id ||
+                  justCreatedBackgroundId === item.background._id
+                }
+                onSelect={() => handleSelectBackground(item.background)}
+                loading={
+                  loadingAction !== null &&
+                  previewBackground?._id === item.background._id
+                }
+              />
+            )
+          }
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={loadBackgrounds}
+              onRefresh={() => {
+                void loadBackgrounds();
+              }}
               tintColor={colors.accent}
             />
           }

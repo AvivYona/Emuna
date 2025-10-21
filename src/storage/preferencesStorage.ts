@@ -30,4 +30,5 @@ export const STORAGE_KEYS = {
   notificationTime: 'notificationTime',
   selectedBackground: 'selectedBackground',
   selectedBackgroundTarget: 'selectedBackgroundTarget',
+  customBackgrounds: 'customBackgroundLibrary',
 } as const;

@@ -139,10 +139,22 @@ function isBackground(value: Background | null): value is Background {
 
 export async function getBackgrounds(): Promise<Background[]> {
   try {
-    const data = await fetchJson<BackgroundApiRecord[]>("/backgrounds");
+    const data = await fetchJson<BackgroundApiRecord[]>(
+      "/backgrounds/notClean"
+    );
     return data.map(mapBackground).filter(isBackground);
   } catch (error) {
     console.warn("Error fetching backgrounds", error);
+    return [];
+  }
+}
+
+export async function getCleanBackgrounds(): Promise<Background[]> {
+  try {
+    const data = await fetchJson<BackgroundApiRecord[]>("/backgrounds/clean");
+    return data.map(mapBackground).filter(isBackground);
+  } catch (error) {
+    console.warn("Error fetching clean backgrounds", error);
     return [];
   }
 }

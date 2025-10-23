@@ -827,11 +827,22 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
       }
       const identifier = `custom-${Date.now()}`;
       const targetPath = `${targetDir}/${identifier}.jpg`;
-      await FileSystem.copyAsync({ from: captureUri, to: targetPath });
       try {
-        await FileSystem.deleteAsync(captureUri, { idempotent: true });
+        await FileSystem.deleteAsync(targetPath, { idempotent: true });
       } catch (cleanupError) {
-        console.warn("Failed to delete captured temp file", cleanupError);
+        console.warn("Failed to remove previous background file", cleanupError);
+      }
+      try {
+        await FileSystem.moveAsync({ from: captureUri, to: targetPath });
+      } catch (moveError) {
+        console.warn("Failed to move captured background", moveError);
+        console.warn("Falling back to copy", { captureUri, targetPath });
+        await FileSystem.copyAsync({ from: captureUri, to: targetPath });
+        try {
+          await FileSystem.deleteAsync(captureUri, { idempotent: true });
+        } catch (cleanupError) {
+          console.warn("Failed to delete captured temp file", cleanupError);
+        }
       }
 
       const background: Background = {
@@ -1075,7 +1086,7 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
                 height: canvasDimensions.height,
               },
             ]}
-            options={{ format: "jpg", quality: 0.92 }}
+            options={{ format: "jpg", quality: 0.95, result: "tmpfile" }}
           >
             <View style={styles.canvas}>
               <View style={styles.canvasBase} />

@@ -811,12 +811,38 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => resolve())
       );
+      await new Promise<void>((resolve) => setTimeout(resolve, 80));
       const capture = viewShotRef.current.capture?.bind(viewShotRef.current);
       if (!capture) {
         throw new Error("CAPTURE_METHOD_MISSING");
       }
-      const captureUri = await capture();
+      let captureUri: string | undefined;
+      let captureError: unknown = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          captureUri = await capture();
+          if (captureUri) {
+            break;
+          }
+        } catch (error) {
+          captureError = error;
+          if (
+            attempt < 2 &&
+            error &&
+            typeof error === "object" &&
+            "code" in error &&
+            (error as { code?: string }).code === "E_UNABLE_TO_SNAPSHOT"
+          ) {
+            await new Promise<void>((resolve) => setTimeout(resolve, 120));
+            continue;
+          }
+          throw error;
+        }
+      }
       if (!captureUri) {
+        if (captureError) {
+          throw captureError;
+        }
         throw new Error("CAPTURE_FAILED");
       }
       const targetDir = `${baseDir}custom-backgrounds`;

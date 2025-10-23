@@ -1,5 +1,12 @@
-export const BASE_URL =
-  "https://ng52wotdcb.execute-api.il-central-1.amazonaws.com";
+const envBaseUrl = process.env.EXPO_PUBLIC_BASE_URL;
+
+if (!envBaseUrl) {
+  console.warn(
+    "[ApiClient] EXPO_PUBLIC_BASE_URL is not defined. Falling back to default URL."
+  );
+}
+
+export const BASE_URL = envBaseUrl;
 
 async function parseJson<T>(response: Response): Promise<T> {
   const text = await response.text();

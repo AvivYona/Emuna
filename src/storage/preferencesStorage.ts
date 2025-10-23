@@ -31,4 +31,5 @@ export const STORAGE_KEYS = {
   selectedBackground: "selectedBackground",
   selectedBackgroundTarget: "selectedBackgroundTarget",
   customBackgrounds: "customBackgroundLibrary",
+  lastNotificationPreview: "lastNotificationPreview",
 } as const;

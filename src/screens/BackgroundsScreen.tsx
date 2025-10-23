@@ -43,6 +43,7 @@ import {
 import {
   getCustomBackgrounds,
   removeCustomBackground,
+  CustomBackgroundRecord,
 } from "../storage/customBackgroundsStorage";
 
 const handledNotificationKeys = new Set<string>();
@@ -115,6 +116,8 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     setWantsQuotes,
     notificationTime,
     loaded,
+    lastNotificationPreview,
+    setLastNotificationPreview,
   } = usePreferences();
   const [customBackgrounds, setCustomBackgrounds] = useState<Background[]>([]);
   const [remoteBackgrounds, setRemoteBackgrounds] = useState<Background[]>([]);
@@ -190,12 +193,40 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     deletingBackgroundId === backgroundPendingDeletion._id;
   const lastNotificationResponse = Notifications.useLastNotificationResponse();
   const isFocused = useIsFocused();
+  const isFocusedRef = useRef(isFocused);
+  const refreshingRef = useRef(false);
   const handledNotificationKeyRef = useRef<string | null>(null);
   const focusTimestampRef = useRef<number>(Date.now());
 
   const loadCustomBackgrounds = useCallback(async () => {
     const customItems = await getCustomBackgrounds();
-    setCustomBackgrounds(customItems);
+    if (customItems.length === 0) {
+      setCustomBackgrounds([]);
+      return;
+    }
+
+    const validated = await Promise.all(
+      customItems.map(async (item) => {
+        if (item.imageUrl?.startsWith("file://")) {
+          try {
+            const info = await FileSystem.getInfoAsync(item.imageUrl);
+            if (!info.exists) {
+              await removeCustomBackground(item._id);
+              return null;
+            }
+          } catch (error) {
+            console.warn("Failed to validate custom background file", error);
+            return null;
+          }
+        }
+        return item;
+      })
+    );
+
+    const filtered = validated.filter(
+      (item): item is CustomBackgroundRecord => item !== null
+    );
+    setCustomBackgrounds(filtered);
   }, []);
 
   const loadRemoteBackgrounds = useCallback(async () => {
@@ -204,8 +235,14 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   }, []);
 
   const loadBackgrounds = useCallback(
-    async (refreshRemote = false) => {
-      setRefreshing(true);
+    async ({
+      refreshRemote = false,
+      showSpinner = true,
+    }: { refreshRemote?: boolean; showSpinner?: boolean } = {}) => {
+      if (showSpinner && isFocusedRef.current && !refreshingRef.current) {
+        refreshingRef.current = true;
+        setRefreshing(true);
+      }
       try {
         const tasks: Array<Promise<unknown>> = [loadCustomBackgrounds()];
         if (refreshRemote || initialLoading) {
@@ -213,7 +250,12 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
         }
         await Promise.all(tasks);
       } finally {
-        setRefreshing(false);
+        if (refreshingRef.current) {
+          refreshingRef.current = false;
+          setRefreshing(false);
+        } else if (!isFocusedRef.current) {
+          requestAnimationFrame(() => setRefreshing(false));
+        }
         setInitialLoading(false);
       }
     },
@@ -222,9 +264,17 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
 
   useFocusEffect(
     useCallback(() => {
-      void loadBackgrounds(false);
+      void loadBackgrounds({ refreshRemote: false, showSpinner: false });
     }, [loadBackgrounds])
   );
+
+  useEffect(() => {
+    isFocusedRef.current = isFocused;
+    if (!isFocused || refreshingRef.current) {
+      refreshingRef.current = false;
+      setRefreshing(false);
+    }
+  }, [isFocused]);
 
   useEffect(() => {
     const highlightId = route.params?.highlightBackgroundId;
@@ -301,12 +351,16 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     handledNotificationKeyRef.current = notificationKey;
     setNotificationDescription(trimmedDescription);
     setNotificationQuote(quote ? quote.trim() : null);
+    setLastNotificationPreview({
+      quote: quote ? quote.trim() : null,
+      description: trimmedDescription,
+    });
     setPreviewBackground(null);
     setTarget("home");
     setModalVisible(true);
     setSharingQuote(false);
     setSaveInstructionsVisible(false);
-  }, [isFocused, lastNotificationResponse, wantsQuotes]);
+  }, [isFocused, lastNotificationResponse, wantsQuotes, setLastNotificationPreview]);
 
   const handleSelectBackground = (background: Background) => {
     const initialTarget: BackgroundTarget =
@@ -326,7 +380,6 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
       return;
     }
     if (handledNotificationKeyRef.current) {
-      handledNotificationKeys.delete(handledNotificationKeyRef.current);
       handledNotificationKeyRef.current = null;
     }
     setModalVisible(false);
@@ -576,7 +629,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const renderHeader = () => (
     <GlassCard style={styles.headerCard}>
       <Text style={styles.heading}>ספריית הרקעים</Text>
-      <Text style={styles.subtitle}>החלק ובחר רקע שמעצים אותך.</Text>
+      <Text style={styles.subtitle}>גלול ובחר רקע שמעצים אותך</Text>
       {wantsQuotes ? (
         <View style={styles.summaryBox}>
           <Text style={styles.summaryTitle}>התזכורת היומית שלך</Text>
@@ -586,15 +639,38 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
               ? formatTime(fromTimeString(notificationTime))
               : "לא נבחרה"}
           </Text>
+          {lastNotificationPreview ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.previewBubble,
+                pressed ? styles.previewBubblePressed : null,
+              ]}
+              onPress={() => {
+                setNotificationDescription(lastNotificationPreview.description);
+                setNotificationQuote(lastNotificationPreview.quote);
+                setPreviewBackground(null);
+                setTarget("home");
+                setModalVisible(true);
+              }}
+            >
+              {lastNotificationPreview.quote ? (
+                <Text style={styles.previewQuote}>
+                  {lastNotificationPreview.quote}
+                </Text>
+              ) : null}
+            </Pressable>
+          ) : null}
           <PrimaryButton
             label="עריכת זמן ההתראה"
             onPress={handleEditSchedule}
             style={styles.summaryButton}
+            size="small"
           />
           <PrimaryButton
             label="כיבוי ההתראות"
             onPress={handleDisableQuotes}
             variant="secondary"
+            size="small"
           />
         </View>
       ) : (
@@ -604,6 +680,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
             label="הפעלת ציטוטים יומיים"
             onPress={handleEnableQuotes}
             style={styles.summaryButton}
+            size="small"
           />
         </View>
       )}
@@ -755,7 +832,10 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={() => {
-                  void loadBackgrounds(true);
+                  void loadBackgrounds({
+                    refreshRemote: true,
+                    showSpinner: true,
+                  });
                 }}
                 tintColor={colors.accent}
               />
@@ -1011,6 +1091,29 @@ const styles = StyleSheet.create({
   },
   summaryButton: {
     marginTop: spacing.md,
+  },
+  previewBubble: {
+    marginTop: spacing.md,
+    padding: spacing.sm,
+    borderRadius: spacing.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    gap: spacing.xs,
+  },
+  previewBubblePressed: {
+    opacity: 0.85,
+  },
+  previewQuote: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.textPrimary,
+    textAlign: "center",
+  },
+  previewDescription: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: "center",
   },
   modalOverlay: {
     flex: 1,

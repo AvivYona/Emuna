@@ -8,10 +8,19 @@ type Props = {
   disabled?: boolean;
   loading?: boolean;
   variant?: 'primary' | 'secondary';
+  size?: 'small' | 'medium';
   style?: StyleProp<ViewStyle>;
 };
 
-export const PrimaryButton: React.FC<Props> = ({ label, onPress, disabled, loading, variant = 'primary', style }) => {
+export const PrimaryButton: React.FC<Props> = ({
+  label,
+  onPress,
+  disabled,
+  loading,
+  variant = 'primary',
+  size = 'medium',
+  style,
+}) => {
   const isSecondary = variant === 'secondary';
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -51,6 +60,7 @@ export const PrimaryButton: React.FC<Props> = ({ label, onPress, disabled, loadi
       <Animated.View
         style={[
           styles.button,
+          size === 'small' ? styles.buttonSmall : styles.buttonMedium,
           isSecondary ? styles.secondary : styles.primary,
           disabled ? styles.disabled : null,
           { transform: [{ scale }] },
@@ -59,7 +69,15 @@ export const PrimaryButton: React.FC<Props> = ({ label, onPress, disabled, loadi
         {loading ? (
           <ActivityIndicator color={indicatorColor} />
         ) : (
-          <Text style={[styles.label, isSecondary ? styles.labelSecondary : styles.labelPrimary]}>{label}</Text>
+          <Text
+            style={[
+              styles.label,
+              size === 'small' ? styles.labelSmall : styles.labelMedium,
+              isSecondary ? styles.labelSecondary : styles.labelPrimary,
+            ]}
+          >
+            {label}
+          </Text>
         )}
       </Animated.View>
     </Pressable>
@@ -77,13 +95,18 @@ const styles = StyleSheet.create({
   },
   button: {
     width: '100%',
-    paddingVertical: spacing.md,
     borderRadius: spacing.lg,
     borderWidth: 1,
     borderColor: colors.divider,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
+  },
+  buttonMedium: {
+    paddingVertical: spacing.md,
+  },
+  buttonSmall: {
+    paddingVertical: spacing.xs,
   },
   primary: {
     backgroundColor: colors.accent,
@@ -95,10 +118,15 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   label: {
-    fontSize: 18,
     fontWeight: '600',
     textAlign: 'center',
     writingDirection: 'rtl',
+  },
+  labelMedium: {
+    fontSize: 18,
+  },
+  labelSmall: {
+    fontSize: 14,
   },
   labelPrimary: {
     color: colors.background,

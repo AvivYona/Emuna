@@ -5,18 +5,25 @@ import { useShabbatRestriction } from '../context/ShabbatContext';
 
 type BackgroundTarget = 'home' | 'lock';
 
+type NotificationPreview = {
+  quote: string | null;
+  description: string;
+};
+
 type PreferencesState = {
   wantsQuotes?: boolean;
   notificationTime?: string;
   selectedBackground?: string;
   selectedBackgroundTarget?: BackgroundTarget;
   loaded: boolean;
+  lastNotificationPreview?: NotificationPreview;
 };
 
 type PreferencesContextValue = PreferencesState & {
   setWantsQuotes(value: boolean): void;
   setNotificationTime(time?: string): void;
   setSelectedBackground(id?: string, target?: BackgroundTarget): void;
+  setLastNotificationPreview(preview?: NotificationPreview | null): void;
   reset(): void;
 };
 
@@ -29,6 +36,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     selectedBackground: undefined,
     selectedBackgroundTarget: undefined,
     loaded: false,
+    lastNotificationPreview: undefined,
   });
   const { restriction, loading: restrictionLoading } = useShabbatRestriction();
 
@@ -37,12 +45,33 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     const loadPreferences = async () => {
       try {
-        const [wantsQuotes, notificationTime, selectedBackground, selectedBackgroundTarget] = await Promise.all([
+        const [wantsQuotes, notificationTime, selectedBackground, selectedBackgroundTarget, lastNotificationPreviewRaw] = await Promise.all([
           getBoolean(STORAGE_KEYS.wantsQuotes),
           getString(STORAGE_KEYS.notificationTime),
           getString(STORAGE_KEYS.selectedBackground),
           getString(STORAGE_KEYS.selectedBackgroundTarget),
+          getString(STORAGE_KEYS.lastNotificationPreview),
         ]);
+
+        let lastNotificationPreview: NotificationPreview | undefined;
+        if (lastNotificationPreviewRaw) {
+          try {
+            const parsed = JSON.parse(lastNotificationPreviewRaw) as NotificationPreview;
+            if (
+              parsed &&
+              typeof parsed === 'object' &&
+              'description' in parsed &&
+              typeof parsed.description === 'string'
+            ) {
+              lastNotificationPreview = {
+                description: parsed.description,
+                quote: parsed.quote ?? null,
+              };
+            }
+          } catch (error) {
+            console.warn('Error parsing last notification preview from AsyncStorage', error);
+          }
+        }
 
         if (!isMounted) return;
 
@@ -52,11 +81,12 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
           selectedBackground: selectedBackground ?? undefined,
           selectedBackgroundTarget: selectedBackgroundTarget === 'home' || selectedBackgroundTarget === 'lock' ? selectedBackgroundTarget : undefined,
           loaded: true,
+          lastNotificationPreview,
         });
       } catch (error) {
         if (!isMounted) return;
         console.warn('Error loading preferences from AsyncStorage', error);
-        setState((prev) => ({ ...prev, loaded: true }));
+        setState((prev) => ({ ...prev, loaded: true, lastNotificationPreview: undefined }));
       }
     };
 
@@ -71,9 +101,16 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setBoolean(STORAGE_KEYS.wantsQuotes, value).catch((error) => {
       console.warn('Error saving quote preference to AsyncStorage', error);
     });
-    setState((prev) => ({ ...prev, wantsQuotes: value }));
+    setState((prev) => ({
+      ...prev,
+      wantsQuotes: value,
+      lastNotificationPreview: value ? prev.lastNotificationPreview : undefined,
+    }));
     if (!value) {
       cancelDailyQuoteNotification();
+      removeItem(STORAGE_KEYS.lastNotificationPreview).catch((error) => {
+        console.warn('Error clearing last notification preview from AsyncStorage', error);
+      });
     }
   }, []);
 
@@ -117,16 +154,39 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
     [state.selectedBackgroundTarget],
   );
 
+  const setLastNotificationPreview = useCallback((preview?: NotificationPreview | null) => {
+    if (!preview) {
+      removeItem(STORAGE_KEYS.lastNotificationPreview).catch((error) => {
+        console.warn('Error clearing last notification preview from AsyncStorage', error);
+      });
+      setState((prev) => ({ ...prev, lastNotificationPreview: undefined }));
+      return;
+    }
+
+    setString(STORAGE_KEYS.lastNotificationPreview, JSON.stringify(preview)).catch((error) => {
+      console.warn('Error saving last notification preview to AsyncStorage', error);
+    });
+    setState((prev) => ({ ...prev, lastNotificationPreview: preview }));
+  }, []);
+
   const reset = useCallback(() => {
     Promise.all([
       removeItem(STORAGE_KEYS.wantsQuotes),
       removeItem(STORAGE_KEYS.notificationTime),
       removeItem(STORAGE_KEYS.selectedBackground),
       removeItem(STORAGE_KEYS.selectedBackgroundTarget),
+      removeItem(STORAGE_KEYS.lastNotificationPreview),
     ]).catch((error) => {
       console.warn('Error resetting preferences in AsyncStorage', error);
     });
-    setState({ wantsQuotes: undefined, notificationTime: undefined, selectedBackground: undefined, selectedBackgroundTarget: undefined, loaded: true });
+    setState({
+      wantsQuotes: undefined,
+      notificationTime: undefined,
+      selectedBackground: undefined,
+      selectedBackgroundTarget: undefined,
+      loaded: true,
+      lastNotificationPreview: undefined,
+    });
     cancelDailyQuoteNotification();
   }, []);
 
@@ -162,9 +222,10 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setWantsQuotes,
       setNotificationTime,
       setSelectedBackground,
+      setLastNotificationPreview,
       reset,
     }),
-    [state, setNotificationTime, setSelectedBackground, setWantsQuotes, reset],
+    [state, setNotificationTime, setSelectedBackground, setWantsQuotes, setLastNotificationPreview, reset],
   );
 
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;

@@ -11,18 +11,20 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  Keyboard,
   useWindowDimensions,
   View,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import * as ImagePicker from "expo-image-picker";
 import ViewShot from "react-native-view-shot";
 import * as FileSystem from "expo-file-system";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
-import { RootStackParamList } from "../navigation/RootNavigator";
+import {
+  BackgroundSelectionParam,
+  RootStackParamList,
+} from "../navigation/RootNavigator";
 import { Background, Quote } from "../api/types";
-import { getCleanBackgrounds } from "../api/backgrounds";
 import { getQuotes } from "../api/quotes";
 import { saveCustomBackground } from "../storage/customBackgroundsStorage";
 import { colors, spacing } from "../theme";
@@ -55,15 +57,21 @@ type DraggableTextProps = {
   onResize(id: string, nextSize: number): void;
   canvasWidth: number;
   canvasHeight: number;
+  showEditingChrome: boolean;
+  editing: boolean;
+  onChangeContent(id: string, content: string): void;
+  onFinishEditing(id: string): void;
 };
 
 type TextPanel = "font" | "color" | "size" | null;
 
 const TEXT_ICON_BAR_WIDTH = 40;
-const BACKGROUND_ICON_BAR_WIDTH = 40;
 const MIN_FONT_SIZE = 14;
 const MAX_FONT_SIZE = 110;
 const TEXT_BOUNDARY_MARGIN = 48;
+const RESIZE_HANDLE_SIZE = 18;
+const RESIZE_HANDLE_OFFSET = RESIZE_HANDLE_SIZE / 2;
+const RESIZE_SCALE_FACTOR = 0.35;
 
 const FONT_OPTIONS: Array<{ label: string; value: string }> = [
   {
@@ -124,15 +132,6 @@ const TEXT_ICON_BUTTONS: Array<{
   { key: "delete", label: "מחיקה", icon: "🗑️" },
 ];
 
-const BACKGROUND_ICON_BUTTONS: Array<{
-  key: "gallery" | "import";
-  label: string;
-  icon: string;
-}> = [
-  { key: "gallery", label: "רקעים של אמונה", icon: "🖼️" },
-  { key: "import", label: "ייבוא מהטלפון", icon: "📱" },
-];
-
 const DraggableText: React.FC<DraggableTextProps> = ({
   item,
   selected,
@@ -142,6 +141,10 @@ const DraggableText: React.FC<DraggableTextProps> = ({
   onResize,
   canvasWidth,
   canvasHeight,
+  showEditingChrome,
+  editing,
+  onChangeContent,
+  onFinishEditing,
 }) => {
   const startPositionRef = React.useRef(item.position);
   const lastTapRef = React.useRef<number>(0);
@@ -204,8 +207,22 @@ const DraggableText: React.FC<DraggableTextProps> = ({
     [clampPosition, item.id, item.position, onEdit, onMove, onSelect]
   );
 
-  const resizeResponder = useMemo(
-    () =>
+  const applySizeDelta = useCallback(
+    (delta: number) => {
+      const next = Math.max(
+        MIN_FONT_SIZE,
+        Math.min(
+          MAX_FONT_SIZE,
+          initialFontRef.current + delta * RESIZE_SCALE_FACTOR
+        )
+      );
+      onResize(item.id, next);
+    },
+    [item.id, onResize]
+  );
+
+  const createEdgeResponder = useCallback(
+    (direction: "left" | "right" | "top" | "bottom") =>
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onPanResponderGrant: () => {
@@ -213,24 +230,50 @@ const DraggableText: React.FC<DraggableTextProps> = ({
           onSelect(item.id);
         },
         onPanResponderMove: (_, gestureState) => {
-          const delta = Math.max(gestureState.dx, gestureState.dy);
-          const next = Math.max(
-            MIN_FONT_SIZE,
-            Math.min(MAX_FONT_SIZE, initialFontRef.current + delta * 0.35)
-          );
-          onResize(item.id, next);
+          const delta =
+            direction === "left"
+              ? -gestureState.dx
+              : direction === "right"
+              ? gestureState.dx
+              : direction === "top"
+              ? -gestureState.dy
+              : gestureState.dy;
+          applySizeDelta(delta);
         },
         onPanResponderRelease: (_, gestureState) => {
-          const delta = Math.max(gestureState.dx, gestureState.dy);
-          const next = Math.max(
-            MIN_FONT_SIZE,
-            Math.min(MAX_FONT_SIZE, initialFontRef.current + delta * 0.35)
-          );
-          onResize(item.id, next);
+          const delta =
+            direction === "left"
+              ? -gestureState.dx
+              : direction === "right"
+              ? gestureState.dx
+              : direction === "top"
+              ? -gestureState.dy
+              : gestureState.dy;
+          applySizeDelta(delta);
         },
       }),
-    [item.fontSize, item.id, onResize, onSelect]
+    [applySizeDelta, item.fontSize, item.id, onSelect]
   );
+
+  const leftResizeResponder = useMemo(
+    () => createEdgeResponder("left"),
+    [createEdgeResponder]
+  );
+  const rightResizeResponder = useMemo(
+    () => createEdgeResponder("right"),
+    [createEdgeResponder]
+  );
+  const topResizeResponder = useMemo(
+    () => createEdgeResponder("top"),
+    [createEdgeResponder]
+  );
+  const bottomResizeResponder = useMemo(
+    () => createEdgeResponder("bottom"),
+    [createEdgeResponder]
+  );
+
+  const showHighlight = showEditingChrome && selected;
+  const showHandles = showHighlight && !editing;
 
   return (
     <View
@@ -239,60 +282,71 @@ const DraggableText: React.FC<DraggableTextProps> = ({
         {
           left: item.position.x,
           top: item.position.y,
-          borderColor: selected ? colors.accent : "transparent",
-          backgroundColor: selected
+          borderColor: showHighlight ? colors.accent : "transparent",
+          backgroundColor: showHighlight
             ? "rgba(255, 255, 255, 0.35)"
             : "transparent",
         },
       ]}
-      {...moveResponder.panHandlers}
+      {...(showEditingChrome && !editing ? moveResponder.panHandlers : {})}
     >
-      <Text
-        style={[
-          styles.draggableTextContent,
-          {
-            fontFamily: item.fontFamily,
-            fontSize: item.fontSize,
-            color: item.color,
-          },
-        ]}
-      >
-        {item.content}
-      </Text>
-      {selected ? (
-        <View style={styles.resizeHandleContainer}>
-          <View style={styles.resizeHandle} {...resizeResponder.panHandlers} />
-        </View>
+      {editing ? (
+        <TextInput
+          value={item.content}
+          onChangeText={(value) => onChangeContent(item.id, value)}
+          autoFocus
+          multiline
+          blurOnSubmit
+          style={[
+            styles.draggableTextContent,
+            styles.draggableTextInput,
+            {
+              fontFamily: item.fontFamily,
+              fontSize: item.fontSize,
+              color: item.color,
+            },
+          ]}
+          selectionColor={colors.accent}
+          cursorColor={colors.accent}
+          onBlur={() => onFinishEditing(item.id)}
+          onSubmitEditing={() => onFinishEditing(item.id)}
+          underlineColorAndroid="transparent"
+        />
+      ) : (
+        <Text
+          style={[
+            styles.draggableTextContent,
+            {
+              fontFamily: item.fontFamily,
+              fontSize: item.fontSize,
+              color: item.color,
+            },
+          ]}
+        >
+          {item.content}
+        </Text>
+      )}
+      {showHandles ? (
+        <>
+          <View
+            style={[styles.resizeHandle, styles.resizeHandleTop]}
+            {...topResizeResponder.panHandlers}
+          />
+          <View
+            style={[styles.resizeHandle, styles.resizeHandleBottom]}
+            {...bottomResizeResponder.panHandlers}
+          />
+          <View
+            style={[styles.resizeHandle, styles.resizeHandleLeft]}
+            {...leftResizeResponder.panHandlers}
+          />
+          <View
+            style={[styles.resizeHandle, styles.resizeHandleRight]}
+            {...rightResizeResponder.panHandlers}
+          />
+        </>
       ) : null}
     </View>
-  );
-};
-
-type BackgroundOptionProps = {
-  background: Background;
-  selected: boolean;
-  onSelect(): void;
-};
-
-const BackgroundOption: React.FC<BackgroundOptionProps> = ({
-  background,
-  selected,
-  onSelect,
-}) => {
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.backgroundOption,
-        pressed ? styles.backgroundOptionPressed : null,
-        selected ? styles.backgroundOptionSelected : null,
-      ]}
-      onPress={onSelect}
-    >
-      <Image
-        source={{ uri: background.thumbnailUrl ?? background.imageUrl }}
-        style={styles.backgroundOptionImage}
-      />
-    </Pressable>
   );
 };
 
@@ -314,9 +368,10 @@ const QuoteCard: React.FC<{ quote: Quote; onSelect(): void }> = ({
 
 export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
   navigation,
+  route,
 }) => {
-  const [cleanBackgrounds, setCleanBackgrounds] = useState<Background[]>([]);
-  const [backgroundsLoading, setBackgroundsLoading] = useState(false);
+  const { initialBackground } = route.params;
+
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [quotesLoading, setQuotesLoading] = useState(false);
   const [texts, setTexts] = useState<EditableText[]>([]);
@@ -324,29 +379,19 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
   const [canvasBackgroundUri, setCanvasBackgroundUri] = useState<string | null>(
     null
   );
-  const [selectedBackgroundId, setSelectedBackgroundId] = useState<
-    string | null
-  >(null);
-  const [selectedGalleryBackgroundId, setSelectedGalleryBackgroundId] =
-    useState<string | null>(null);
-  const [importedUri, setImportedUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showQuoteLibrary, setShowQuoteLibrary] = useState(false);
-  const [showBackgroundGallery, setShowBackgroundGallery] = useState(false);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
-  const [editingValue, setEditingValue] = useState("");
   const [activeTextPanel, setActiveTextPanel] = useState<TextPanel>(null);
+  const [showEditingChrome, setShowEditingChrome] = useState(true);
+  const [confirmExitVisible, setConfirmExitVisible] = useState(false);
 
   const viewShotRef = React.useRef<ViewShot>(null);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
   const canvasDimensions = useMemo(() => {
     const phoneAspectRatio = 19.5 / 9;
-    const availableWidth =
-      windowWidth -
-      TEXT_ICON_BAR_WIDTH -
-      BACKGROUND_ICON_BAR_WIDTH -
-      spacing.xl * 2;
+    const availableWidth = windowWidth - TEXT_ICON_BAR_WIDTH - spacing.xl * 2;
     const maxWidth = Math.max(260, availableWidth);
     let width = maxWidth;
     let height = width * phoneAspectRatio;
@@ -372,6 +417,14 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
     }
   }, [selectedText]);
 
+  useEffect(() => {
+    if (initialBackground.type === "clean") {
+      setCanvasBackgroundUri(initialBackground.background.imageUrl);
+    } else {
+      setCanvasBackgroundUri(initialBackground.uri);
+    }
+  }, [initialBackground]);
+
   const updateText = useCallback(
     (id: string, updater: (current: EditableText) => EditableText) => {
       setTexts((items) =>
@@ -393,18 +446,6 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
     [canvasDimensions.height, canvasDimensions.width]
   );
 
-  const loadBackgrounds = useCallback(async () => {
-    setBackgroundsLoading(true);
-    try {
-      const data = await getCleanBackgrounds();
-      setCleanBackgrounds(data);
-    } catch (error) {
-      console.warn("Failed to load clean backgrounds", error);
-    } finally {
-      setBackgroundsLoading(false);
-    }
-  }, []);
-
   const loadQuotes = useCallback(async () => {
     setQuotesLoading(true);
     try {
@@ -418,39 +459,8 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
   }, []);
 
   useEffect(() => {
-    void loadBackgrounds();
     void loadQuotes();
-  }, [loadBackgrounds, loadQuotes]);
-
-  const handleSelectBackground = useCallback((background: Background) => {
-    setCanvasBackgroundUri(background.imageUrl);
-    setSelectedBackgroundId(background._id);
-    setSelectedGalleryBackgroundId(background._id);
-    setImportedUri(null);
-    setShowBackgroundGallery(false);
-  }, []);
-
-  const handleImportBackground = useCallback(async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 1,
-      });
-      if (result.canceled || !result.assets || result.assets.length === 0) {
-        return;
-      }
-      const [asset] = result.assets;
-      if (!asset.uri) {
-        return;
-      }
-      setCanvasBackgroundUri(asset.uri);
-      setImportedUri(asset.uri);
-      setSelectedBackgroundId(null);
-      setShowBackgroundGallery(false);
-    } catch (error) {
-      console.warn("Error importing background", error);
-    }
-  }, []);
+  }, [loadQuotes]);
 
   const handleAddQuote = useCallback(
     (quote: Quote) => {
@@ -473,6 +483,7 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
         },
       ]);
       setSelectedTextId(id);
+      setEditingTextId(id);
       setShowQuoteLibrary(false);
     },
     [canvasDimensions.height, canvasDimensions.width, clampPosition]
@@ -501,7 +512,6 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
     ]);
     setSelectedTextId(id);
     setEditingTextId(id);
-    setEditingValue(content);
   }, [canvasDimensions.height, canvasDimensions.width, clampPosition]);
 
   const handleMoveText = useCallback(
@@ -575,30 +585,28 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
     setSelectedTextId((current) => (current === id ? null : current));
   }, []);
 
-  const handleStartEditing = useCallback(
+  const handleStartEditing = useCallback((id: string) => {
+    setSelectedTextId(id);
+    setActiveTextPanel(null);
+    setEditingTextId(id);
+  }, []);
+
+  const handleFinishEditing = useCallback(
     (id: string) => {
-      const text = texts.find((item) => item.id === id);
-      if (!text) {
-        return;
-      }
-      setSelectedTextId(id);
-      setEditingTextId(id);
-      setEditingValue(text.content);
+      setEditingTextId((current) => (current === id ? null : current));
+      Keyboard.dismiss();
     },
-    [texts]
+    []
   );
 
-  const handleConfirmEdit = useCallback(() => {
-    if (!editingTextId) {
-      return;
+  const handleCanvasPress = useCallback(() => {
+    if (editingTextId !== null) {
+      setEditingTextId(null);
+      Keyboard.dismiss();
     }
-    handleChangeTextContent(editingTextId, editingValue.trim());
-    setEditingTextId(null);
-  }, [editingTextId, editingValue, handleChangeTextContent]);
-
-  const handleCancelEdit = useCallback(() => {
-    setEditingTextId(null);
-  }, []);
+    setSelectedTextId(null);
+    setActiveTextPanel(null);
+  }, [editingTextId]);
 
   const handleSaveBackground = useCallback(async () => {
     if (saving) {
@@ -616,6 +624,13 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
 
     setSaving(true);
     try {
+      setActiveTextPanel(null);
+      setSelectedTextId(null);
+      setEditingTextId(null);
+      setShowEditingChrome(false);
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve())
+      );
       const capture = viewShotRef.current.capture?.bind(viewShotRef.current);
       if (!capture) {
         throw new Error("CAPTURE_METHOD_MISSING");
@@ -655,38 +670,23 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
       console.warn("Failed to save custom background", error);
       Alert.alert("משהו השתבש", "לא הצלחנו לשמור את הרקע. נסו שוב מאוחר יותר.");
     } finally {
+      setShowEditingChrome(true);
       setSaving(false);
     }
   }, [navigation, saving]);
 
   const handleBackToLibrary = useCallback(() => {
-    Alert.alert(
-      "לעזוב ללא שמירה",
-      "הרקע האישי לא יישמר. האם לחזור לספריית הרקעים?",
-      [
-        { text: "ביטול", style: "cancel" },
-        {
-          text: "חזרה",
-          style: "destructive",
-          onPress: () => navigation.goBack(),
-        },
-      ]
-    );
-  }, [navigation]);
+    setConfirmExitVisible(true);
+  }, []);
 
-  const handleConfirmGallerySelection = useCallback(() => {
-    if (!selectedGalleryBackgroundId) {
-      setShowBackgroundGallery(false);
-      return;
-    }
-    const background = cleanBackgrounds.find(
-      (item) => item._id === selectedGalleryBackgroundId
-    );
-    if (background) {
-      handleSelectBackground(background);
-    }
-    setShowBackgroundGallery(false);
-  }, [cleanBackgrounds, handleSelectBackground, selectedGalleryBackgroundId]);
+  const handleCancelExit = useCallback(() => {
+    setConfirmExitVisible(false);
+  }, []);
+
+  const handleConfirmExit = useCallback(() => {
+    setConfirmExitVisible(false);
+    navigation.goBack();
+  }, [navigation]);
 
   const disableTextTools = !selectedText;
 
@@ -806,7 +806,7 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
   };
 
   return (
-    <ScreenContainer withScroll={false}>
+    <ScreenContainer withScroll={false} avoidKeyboard={false}>
       <View style={styles.editorRow}>
         <View style={[styles.iconBar, styles.iconBarLeft]}>
           {TEXT_ICON_BUTTONS.map((button) => {
@@ -868,6 +868,10 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
                   style={styles.canvasImage}
                 />
               ) : null}
+              <Pressable
+                style={styles.canvasTouchOverlay}
+                onPress={handleCanvasPress}
+              />
               {texts.map((text) => (
                 <DraggableText
                   key={text.id}
@@ -882,33 +886,15 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
                   onResize={handleResizeText}
                   canvasWidth={canvasDimensions.width}
                   canvasHeight={canvasDimensions.height}
+                  showEditingChrome={showEditingChrome}
+                  editing={editingTextId === text.id}
+                  onChangeContent={handleChangeTextContent}
+                  onFinishEditing={handleFinishEditing}
                 />
               ))}
             </View>
           </ViewShot>
           {renderTextPanel()}
-        </View>
-
-        <View style={[styles.iconBar, styles.iconBarRight]}>
-          {BACKGROUND_ICON_BUTTONS.map((button) => {
-            const handlePress =
-              button.key === "gallery"
-                ? () => setShowBackgroundGallery(true)
-                : handleImportBackground;
-            return (
-              <Pressable
-                key={button.key}
-                accessibilityLabel={button.label}
-                style={({ pressed }) => [
-                  styles.iconButton,
-                  pressed ? styles.iconButtonPressed : null,
-                ]}
-                onPress={handlePress}
-              >
-                <Text style={styles.iconLabel}>{button.icon}</Text>
-              </Pressable>
-            );
-          })}
         </View>
       </View>
       <View style={styles.footer}>
@@ -920,7 +906,7 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
             pressed ? styles.footerSecondaryButtonPressed : null,
           ]}
         >
-          <Text style={styles.footerSecondaryLabel}>חזרה לספריית הרקעים</Text>
+          <Text style={styles.footerSecondaryLabel}>חזרה לבחירת רקע</Text>
         </Pressable>
         <PrimaryButton
           label="הרקע מוכן"
@@ -967,109 +953,31 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
         </View>
       </Modal>
       <Modal
-        visible={showBackgroundGallery}
+        visible={confirmExitVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowBackgroundGallery(false)}
+        onRequestClose={handleCancelExit}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>בחרו רקע נקי</Text>
-            {backgroundsLoading ? (
-              <ActivityIndicator color={colors.accent} />
-            ) : (
-              <FlatList
-                data={cleanBackgrounds}
-                keyExtractor={(item) => item._id}
-                numColumns={2}
-                columnWrapperStyle={styles.backgroundRow}
-                contentContainerStyle={styles.modalList}
-                renderItem={({ item }) => (
-                  <BackgroundOption
-                    background={item}
-                    selected={selectedGalleryBackgroundId === item._id}
-                    onSelect={() => setSelectedGalleryBackgroundId(item._id)}
-                  />
-                )}
-              />
-            )}
-            <View style={styles.modalActions}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.modalSecondaryButton,
-                  pressed ? styles.modalSecondaryButtonPressed : null,
-                ]}
-                onPress={() => setShowBackgroundGallery(false)}
-              >
-                <Text style={styles.modalSecondaryLabel}>ביטול</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.modalPrimaryButton,
-                  !selectedGalleryBackgroundId
-                    ? styles.modalPrimaryButtonDisabled
-                    : null,
-                  pressed && selectedGalleryBackgroundId
-                    ? styles.modalPrimaryButtonPressed
-                    : null,
-                ]}
-                disabled={!selectedGalleryBackgroundId}
-                onPress={handleConfirmGallerySelection}
-              >
-                <Text
-                  style={[
-                    styles.modalPrimaryLabel,
-                    !selectedGalleryBackgroundId
-                      ? styles.modalPrimaryLabelDisabled
-                      : null,
-                  ]}
-                >
-                  שמירה כרקע
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-      <Modal
-        visible={editingTextId !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={handleCancelEdit}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.editModal}>
-            <Text style={styles.modalTitle}>עריכת טקסט</Text>
-            <TextInput
-              value={editingValue}
-              onChangeText={setEditingValue}
-              multiline
-              autoFocus
-              textAlignVertical="top"
-              placeholder="הקלידו את הטקסט שלכם..."
-              placeholderTextColor={colors.textSecondary}
-              style={styles.editModalInput}
+          <View style={styles.confirmCard}>
+            <Text style={styles.modalTitle}>לעזוב ללא שמירה</Text>
+            <Text style={styles.confirmMessage}>
+              {"הרקע האישי לא יישמר. האם לחזור לבחירת הרקע?"}
+            </Text>
+            <PrimaryButton
+              label="חזרה לבחירת הרקע"
+              onPress={handleConfirmExit}
             />
-            <View style={styles.editModalActions}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.editModalButton,
-                  pressed ? styles.modalSecondaryButtonPressed : null,
-                ]}
-                onPress={handleCancelEdit}
-              >
-                <Text style={styles.modalSecondaryLabel}>ביטול</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.editModalButtonPrimary,
-                  pressed ? styles.editModalButtonPrimaryPressed : null,
-                ]}
-                onPress={handleConfirmEdit}
-              >
-                <Text style={styles.editModalButtonLabel}>שמירה</Text>
-              </Pressable>
-            </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={handleCancelExit}
+              style={({ pressed }) => [
+                styles.confirmSecondaryButton,
+                pressed ? styles.confirmSecondaryButtonPressed : null,
+              ]}
+            >
+              <Text style={styles.confirmSecondaryLabel}>המשך עריכה</Text>
+            </Pressable>
           </View>
         </View>
       </Modal>
@@ -1091,9 +999,6 @@ const styles = StyleSheet.create({
   },
   iconBarLeft: {
     width: TEXT_ICON_BAR_WIDTH,
-  },
-  iconBarRight: {
-    width: BACKGROUND_ICON_BAR_WIDTH,
   },
   iconButton: {
     width: 56,
@@ -1143,6 +1048,9 @@ const styles = StyleSheet.create({
   canvasImage: {
     ...StyleSheet.absoluteFillObject,
     resizeMode: "cover",
+  },
+  canvasTouchOverlay: {
+    ...StyleSheet.absoluteFillObject,
   },
   footer: {
     flexDirection: "column",
@@ -1281,45 +1189,34 @@ const styles = StyleSheet.create({
   draggableTextContent: {
     textAlign: "center",
   },
-  resizeHandleContainer: {
-    position: "absolute",
-    right: -spacing.xs,
-    bottom: -spacing.xs,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "rgba(58, 32, 22, 0.85)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
   resizeHandle: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#FFFFFF",
-  },
-  backgroundOption: {
-    width: 110,
-    height: 150,
-    borderRadius: spacing.md,
-    overflow: "hidden",
+    position: "absolute",
+    width: RESIZE_HANDLE_SIZE,
+    height: RESIZE_HANDLE_SIZE,
+    borderRadius: 4,
+    backgroundColor: colors.accent,
     borderWidth: 2,
-    borderColor: "transparent",
-    margin: spacing.xs,
+    borderColor: colors.background,
   },
-  backgroundOptionPressed: {
-    opacity: 0.85,
+  resizeHandleTop: {
+    top: -RESIZE_HANDLE_OFFSET,
+    left: "50%",
+    marginLeft: -RESIZE_HANDLE_SIZE / 2,
   },
-  backgroundOptionSelected: {
-    borderColor: colors.accent,
+  resizeHandleBottom: {
+    bottom: -RESIZE_HANDLE_OFFSET,
+    left: "50%",
+    marginLeft: -RESIZE_HANDLE_SIZE / 2,
   },
-  backgroundOptionImage: {
-    width: "100%",
-    height: "100%",
+  resizeHandleLeft: {
+    left: -RESIZE_HANDLE_OFFSET,
+    top: "50%",
+    marginTop: -RESIZE_HANDLE_SIZE / 2,
   },
-  backgroundRow: {
-    justifyContent: "space-between",
-    marginBottom: spacing.sm,
+  resizeHandleRight: {
+    right: -RESIZE_HANDLE_OFFSET,
+    top: "50%",
+    marginTop: -RESIZE_HANDLE_SIZE / 2,
   },
   quoteCard: {
     padding: spacing.sm,
@@ -1360,15 +1257,36 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.md,
   },
-  saveAsBackgroundButton: {
+  confirmCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: colors.card,
+    borderRadius: spacing.lg,
+    padding: spacing.md,
+    gap: spacing.md,
+    alignItems: "center",
+  },
+  confirmMessage: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  confirmSecondaryButton: {
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
     borderRadius: spacing.lg,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.accent,
-    width: 50,
-    height: 50,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmSecondaryButtonPressed: {
+    opacity: 0.85,
+  },
+  confirmSecondaryLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.accent,
+    textAlign: "center",
   },
   modalTitle: {
     fontSize: 18,
@@ -1379,88 +1297,8 @@ const styles = StyleSheet.create({
   modalList: {
     paddingBottom: spacing.sm,
   },
-  modalActions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  modalSecondaryButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderRadius: spacing.lg,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.accent,
-  },
-  modalSecondaryButtonPressed: {
-    opacity: 0.85,
-  },
-  modalSecondaryLabel: {
-    color: colors.accent,
-    fontWeight: "600",
-  },
-  modalPrimaryButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderRadius: spacing.lg,
-    backgroundColor: colors.accent,
-  },
-  modalPrimaryButtonPressed: {
-    opacity: 0.9,
-  },
-  modalPrimaryButtonDisabled: {
-    backgroundColor: colors.accentSoft,
-  },
-  modalPrimaryLabel: {
-    color: colors.background,
-    fontWeight: "600",
-  },
-  modalPrimaryLabelDisabled: {
-    color: colors.textSecondary,
-  },
-  editModal: {
-    width: "100%",
-    maxWidth: 360,
-    backgroundColor: colors.card,
-    borderRadius: spacing.lg,
-    padding: spacing.md,
-    gap: spacing.md,
-  },
-  editModalInput: {
-    minHeight: 120,
-    borderWidth: 1,
-    borderColor: colors.divider,
-    borderRadius: spacing.lg,
-    padding: spacing.md,
-    color: colors.textPrimary,
-    backgroundColor: colors.background,
-  },
-  editModalActions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  editModalButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderRadius: spacing.lg,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.accent,
-  },
-  editModalButtonPrimary: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderRadius: spacing.lg,
-    backgroundColor: colors.accent,
-  },
-  editModalButtonPrimaryPressed: {
-    opacity: 0.9,
-  },
-  editModalButtonLabel: {
-    color: colors.background,
-    fontWeight: "600",
+  draggableTextInput: {
+    padding: 0,
+    backgroundColor: "transparent",
   },
 });

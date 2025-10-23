@@ -1,6 +1,7 @@
 import { Background } from '../api/types';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
 const DEFAULT_EXTENSION = 'jpg';
 
@@ -16,6 +17,51 @@ function extractExtensionFromMime(mime?: string) {
 function createTempFileName(extension: string) {
   const timestamp = Date.now();
   return `${FileSystem.cacheDirectory}wallpaper-${timestamp}.${extension}`;
+}
+
+function resolveSaveFormat(background: Background, localUri: string): SaveFormat {
+  const contentType = background.contentType?.toLowerCase() ?? '';
+  const normalizedUri = localUri.toLowerCase();
+
+  if (contentType.includes('png') || normalizedUri.endsWith('.png')) {
+    return SaveFormat.PNG;
+  }
+
+  if (contentType.includes('webp') || normalizedUri.endsWith('.webp')) {
+    return SaveFormat.WEBP;
+  }
+
+  return SaveFormat.JPEG;
+}
+
+async function reencodeWithFreshMetadata(
+  localUri: string,
+  format: SaveFormat
+): Promise<string> {
+  try {
+    const result = await manipulateAsync(localUri, [], {
+      compress: 1,
+      format,
+    });
+    if (result.uri) {
+      return result.uri;
+    }
+  } catch (error) {
+    console.warn('Failed to refresh image metadata', error);
+  }
+  return localUri;
+}
+
+async function cleanupIfTemporary(uri: string) {
+  const cacheDir = FileSystem.cacheDirectory;
+  if (!cacheDir || !uri.startsWith(cacheDir)) {
+    return;
+  }
+  try {
+    await FileSystem.deleteAsync(uri, { idempotent: true });
+  } catch (error) {
+    console.warn('Failed to clean up temporary background image', error);
+  }
 }
 
 async function saveDataUri(image: string): Promise<string> {
@@ -108,14 +154,20 @@ export async function saveBackgroundToCameraRoll(background: Background): Promis
   }
 
   const localUri = await ensureBackgroundLocalUri(background);
+  const targetFormat = resolveSaveFormat(background, localUri);
+  const refreshedUri = await reencodeWithFreshMetadata(localUri, targetFormat);
   try {
-    const asset = await mediaLibrary.createAssetAsync(localUri);
+    const asset = await mediaLibrary.createAssetAsync(refreshedUri);
     return asset.uri;
   } catch (error) {
     if (isModuleUnavailable(error)) {
       throw new Error(MODULE_UNAVAILABLE);
     }
     throw error;
+  } finally {
+    if (refreshedUri !== localUri) {
+      await cleanupIfTemporary(refreshedUri);
+    }
   }
 }
 

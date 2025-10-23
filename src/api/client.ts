@@ -1,6 +1,5 @@
-export const BASE_URL = "http://localhost:3000";
-// export const BASE_URL =
-//   "https://ng52wotdcb.execute-api.il-central-1.amazonaws.com";
+export const BASE_URL =
+  "https://ng52wotdcb.execute-api.il-central-1.amazonaws.com";
 
 async function parseJson<T>(response: Response): Promise<T> {
   const text = await response.text();

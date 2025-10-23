@@ -1,15 +1,15 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export async function getBoolean(key: string): Promise<boolean | undefined> {
   const value = await AsyncStorage.getItem(key);
   if (value === null) {
     return undefined;
   }
-  return value === 'true';
+  return value === "true";
 }
 
 export function setBoolean(key: string, value: boolean): Promise<void> {
-  return AsyncStorage.setItem(key, value ? 'true' : 'false');
+  return AsyncStorage.setItem(key, value ? "true" : "false");
 }
 
 export async function getString(key: string): Promise<string | undefined> {
@@ -26,9 +26,9 @@ export function removeItem(key: string): Promise<void> {
 }
 
 export const STORAGE_KEYS = {
-  wantsQuotes: 'isUserWantQuotes',
-  notificationTime: 'notificationTime',
-  selectedBackground: 'selectedBackground',
-  selectedBackgroundTarget: 'selectedBackgroundTarget',
-  customBackgrounds: 'customBackgroundLibrary',
+  wantsQuotes: "isUserWantQuotes",
+  notificationTime: "notificationTime",
+  selectedBackground: "selectedBackground",
+  selectedBackgroundTarget: "selectedBackgroundTarget",
+  customBackgrounds: "customBackgroundLibrary",
 } as const;

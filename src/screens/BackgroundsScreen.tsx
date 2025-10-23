@@ -6,10 +6,12 @@ import React, {
   useState,
 } from "react";
 import * as Notifications from "expo-notifications";
+import * as FileSystem from "expo-file-system";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import {
   Alert,
+  ActivityIndicator,
   FlatList,
   ImageBackground,
   Modal,
@@ -38,7 +40,10 @@ import {
   ensureBackgroundLocalUri,
   saveBackgroundToCameraRoll,
 } from "../utils/backgroundAssets";
-import { getCustomBackgrounds } from "../storage/customBackgroundsStorage";
+import {
+  getCustomBackgrounds,
+  removeCustomBackground,
+} from "../storage/customBackgroundsStorage";
 
 const handledNotificationKeys = new Set<string>();
 
@@ -95,7 +100,8 @@ const TARGET_OPTIONS: Array<{ label: string; value: BackgroundTarget }> = [
 
 type BackgroundListItem =
   | { type: "create" }
-  | { type: "background"; background: Background };
+  | { type: "background"; background: Background }
+  | { type: "spacer"; key: string };
 
 export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   navigation,
@@ -110,7 +116,9 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     notificationTime,
     loaded,
   } = usePreferences();
-  const [backgrounds, setBackgrounds] = useState<Background[]>([]);
+  const [customBackgrounds, setCustomBackgrounds] = useState<Background[]>([]);
+  const [remoteBackgrounds, setRemoteBackgrounds] = useState<Background[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [previewBackground, setPreviewBackground] = useState<Background | null>(
@@ -131,44 +139,90 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const [justCreatedBackgroundId, setJustCreatedBackgroundId] = useState<
     string | null
   >(null);
+  const [newBackgroundModalVisible, setNewBackgroundModalVisible] =
+    useState(false);
+  const [backgroundPendingDeletion, setBackgroundPendingDeletion] =
+    useState<Background | null>(null);
+  const [deletingBackgroundId, setDeletingBackgroundId] = useState<
+    string | null
+  >(null);
+
+  const allBackgrounds = useMemo(
+    () => [...customBackgrounds, ...remoteBackgrounds],
+    [customBackgrounds, remoteBackgrounds]
+  );
+
+  const customBackgroundIds = useMemo(
+    () => new Set(customBackgrounds.map((background) => background._id)),
+    [customBackgrounds]
+  );
 
   const backgroundItems = useMemo<BackgroundListItem[]>(() => {
-    return [
+    const items: BackgroundListItem[] = [
       { type: "create" },
-      ...backgrounds.map((background) => ({
+      ...allBackgrounds.map((background) => ({
         type: "background" as const,
         background,
       })),
     ];
-  }, [backgrounds]);
+
+    if (items.length % 2 !== 0) {
+      items.push({ type: "spacer", key: `spacer-${items.length}` });
+    }
+
+    return items;
+  }, [allBackgrounds]);
 
   const handleOpenCustomCreator = useCallback(() => {
-    navigation.navigate("CreateBackground");
+    navigation.navigate("BackgroundPicker");
   }, [navigation]);
 
   const isIOS = Platform.OS === "ios";
   const isProcessing = loadingAction !== null;
+  const isPreviewCustom =
+    previewBackground !== null &&
+    customBackgroundIds.has(previewBackground._id);
+  const deleteInProgress =
+    previewBackground !== null &&
+    deletingBackgroundId === previewBackground._id;
+  const pendingDeleteInProgress =
+    backgroundPendingDeletion !== null &&
+    deletingBackgroundId === backgroundPendingDeletion._id;
   const lastNotificationResponse = Notifications.useLastNotificationResponse();
   const isFocused = useIsFocused();
   const handledNotificationKeyRef = useRef<string | null>(null);
   const focusTimestampRef = useRef<number>(Date.now());
 
-  const loadBackgrounds = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const [customItems, remoteItems] = await Promise.all([
-        getCustomBackgrounds(),
-        getBackgrounds(),
-      ]);
-      setBackgrounds([...customItems, ...remoteItems]);
-    } finally {
-      setRefreshing(false);
-    }
+  const loadCustomBackgrounds = useCallback(async () => {
+    const customItems = await getCustomBackgrounds();
+    setCustomBackgrounds(customItems);
   }, []);
+
+  const loadRemoteBackgrounds = useCallback(async () => {
+    const remoteItems = await getBackgrounds();
+    setRemoteBackgrounds(remoteItems);
+  }, []);
+
+  const loadBackgrounds = useCallback(
+    async (refreshRemote = false) => {
+      setRefreshing(true);
+      try {
+        const tasks: Array<Promise<unknown>> = [loadCustomBackgrounds()];
+        if (refreshRemote || initialLoading) {
+          tasks.push(loadRemoteBackgrounds());
+        }
+        await Promise.all(tasks);
+      } finally {
+        setRefreshing(false);
+        setInitialLoading(false);
+      }
+    },
+    [initialLoading, loadCustomBackgrounds, loadRemoteBackgrounds]
+  );
 
   useFocusEffect(
     useCallback(() => {
-      void loadBackgrounds();
+      void loadBackgrounds(false);
     }, [loadBackgrounds])
   );
 
@@ -185,11 +239,9 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     if (!justCreatedBackgroundId) {
       return;
     }
-    Alert.alert(
-      "הרקע נשמר",
-      "הרקע האישי החדש שלך מחכה בראש ספריית הרקעים."
-    );
+    setNewBackgroundModalVisible(true);
     const timer = setTimeout(() => {
+      setNewBackgroundModalVisible(false);
       setJustCreatedBackgroundId(null);
     }, 3500);
     return () => clearTimeout(timer);
@@ -253,6 +305,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     setTarget("home");
     setModalVisible(true);
     setSharingQuote(false);
+    setSaveInstructionsVisible(false);
   }, [isFocused, lastNotificationResponse, wantsQuotes]);
 
   const handleSelectBackground = (background: Background) => {
@@ -271,6 +324,10 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const handleCloseModal = (force = false) => {
     if (isProcessing && !force) {
       return;
+    }
+    if (handledNotificationKeyRef.current) {
+      handledNotificationKeys.delete(handledNotificationKeyRef.current);
+      handledNotificationKeyRef.current = null;
     }
     setModalVisible(false);
     setPreviewBackground(null);
@@ -392,6 +449,73 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     }
   };
 
+  const handleRequestDeleteBackground = useCallback(() => {
+    if (!previewBackground) {
+      return;
+    }
+    if (!customBackgroundIds.has(previewBackground._id)) {
+      return;
+    }
+    const target = previewBackground;
+    handleCloseModal(true);
+    setBackgroundPendingDeletion(target);
+  }, [customBackgroundIds, handleCloseModal, previewBackground]);
+
+  const handleCancelDeleteBackground = useCallback(() => {
+    if (deletingBackgroundId) {
+      return;
+    }
+    setBackgroundPendingDeletion(null);
+  }, [deletingBackgroundId]);
+
+  const handleConfirmDeleteBackground = useCallback(async () => {
+    if (!backgroundPendingDeletion) {
+      return;
+    }
+    const targetBackground = backgroundPendingDeletion;
+    setDeletingBackgroundId(targetBackground._id);
+    try {
+      const wasPreviewed = previewBackground?._id === targetBackground._id;
+      if (wasPreviewed) {
+        handleCloseModal(true);
+      }
+      await removeCustomBackground(targetBackground._id);
+      if (
+        targetBackground.imageUrl &&
+        targetBackground.imageUrl.startsWith("file://")
+      ) {
+        try {
+          await FileSystem.deleteAsync(targetBackground.imageUrl, {
+            idempotent: true,
+          });
+        } catch (fileError) {
+          console.warn("Failed to delete custom background file", fileError);
+        }
+      }
+      setCustomBackgrounds((items) =>
+        items.filter((item) => item._id !== targetBackground._id)
+      );
+      if (selectedBackground === targetBackground._id) {
+        setSelectedBackground();
+      }
+    } catch (error) {
+      console.warn("Failed to delete custom background", error);
+      Alert.alert(
+        "שגיאה במחיקה",
+        "לא הצלחנו למחוק את הרקע. נסו שוב מאוחר יותר."
+      );
+    } finally {
+      setDeletingBackgroundId(null);
+      setBackgroundPendingDeletion(null);
+    }
+  }, [
+    backgroundPendingDeletion,
+    handleCloseModal,
+    previewBackground,
+    selectedBackground,
+    setSelectedBackground,
+  ]);
+
   const handleShareNotification = async () => {
     if (!notificationDescription && !notificationQuote) return;
     if (sharingQuote) return;
@@ -436,6 +560,11 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const handleDisableQuotes = () => {
     setWantsQuotes(false);
   };
+
+  const handleDismissNewBackgroundModal = useCallback(() => {
+    setNewBackgroundModalVisible(false);
+    setJustCreatedBackgroundId(null);
+  }, []);
 
   useEffect(() => {
     if (!loaded) return;
@@ -538,6 +667,26 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
                     loading={loadingAction === "share"}
                     disabled={isProcessing}
                   />
+                  {isPreviewCustom ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={handleRequestDeleteBackground}
+                      disabled={isProcessing || deleteInProgress}
+                      style={({ pressed }) => [
+                        styles.deleteButton,
+                        pressed && !deleteInProgress && !isProcessing
+                          ? styles.deleteButtonPressed
+                          : null,
+                        deleteInProgress ? styles.deleteButtonDisabled : null,
+                      ]}
+                    >
+                      {deleteInProgress ? (
+                        <ActivityIndicator color={colors.background} />
+                      ) : (
+                        <Text style={styles.deleteButtonLabel}>מחיקת הרקע</Text>
+                      )}
+                    </Pressable>
+                  ) : null}
                 </>
               ) : notificationDescription ? (
                 <View style={styles.notificationDescriptionBox}>
@@ -568,45 +717,56 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
         </View>
       </Modal>
       <ScreenContainer withScroll={false}>
-        <FlatList
-          data={backgroundItems}
-          keyExtractor={(item) =>
-            item.type === "create"
-              ? "create-background-card"
-              : item.background._id
-          }
-          numColumns={2}
-          columnWrapperStyle={styles.row}
-          contentContainerStyle={styles.listContent}
-          ListHeaderComponent={renderHeader}
-          renderItem={({ item }) =>
-            item.type === "create" ? (
-              <CreateBackgroundCard onPress={handleOpenCustomCreator} />
-            ) : (
-              <BackgroundCard
-                item={item.background}
-                selected={
-                  selectedBackground === item.background._id ||
-                  justCreatedBackgroundId === item.background._id
-                }
-                onSelect={() => handleSelectBackground(item.background)}
-                loading={
-                  loadingAction !== null &&
-                  previewBackground?._id === item.background._id
-                }
+        <View style={styles.listWrapper}>
+          <FlatList
+            data={backgroundItems}
+            keyExtractor={(item) =>
+              item.type === "create"
+                ? "create-background-card"
+                : item.type === "spacer"
+                ? item.key
+                : item.background._id
+            }
+            numColumns={2}
+            columnWrapperStyle={styles.row}
+            contentContainerStyle={styles.listContent}
+            ListHeaderComponent={renderHeader}
+            renderItem={({ item }) =>
+              item.type === "create" ? (
+                <CreateBackgroundCard onPress={handleOpenCustomCreator} />
+              ) : item.type === "spacer" ? (
+                <View pointerEvents="none" style={styles.backgroundSpacer} />
+              ) : (
+                <BackgroundCard
+                  item={item.background}
+                  selected={
+                    selectedBackground === item.background._id ||
+                    justCreatedBackgroundId === item.background._id
+                  }
+                  onSelect={() => handleSelectBackground(item.background)}
+                  loading={
+                    loadingAction !== null &&
+                    previewBackground?._id === item.background._id
+                  }
+                />
+              )
+            }
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => {
+                  void loadBackgrounds(true);
+                }}
+                tintColor={colors.accent}
               />
-            )
-          }
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => {
-                void loadBackgrounds();
-              }}
-              tintColor={colors.accent}
-            />
-          }
-        />
+            }
+          />
+          {initialLoading ? (
+            <View style={styles.loadingOverlay} pointerEvents="none">
+              <ActivityIndicator size="large" color={colors.accent} />
+            </View>
+          ) : null}
+        </View>
       </ScreenContainer>
       <Modal
         visible={saveInstructionsVisible}
@@ -646,6 +806,96 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
           </View>
         </View>
       </Modal>
+      <Modal
+        visible={newBackgroundModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={handleDismissNewBackgroundModal}
+      >
+        <View style={styles.alertOverlay}>
+          <Pressable
+            style={styles.alertBackdrop}
+            onPress={handleDismissNewBackgroundModal}
+          >
+            <View />
+          </Pressable>
+          <View style={styles.alertCard}>
+            <Text style={styles.alertTitle}>הרקע נשמר</Text>
+            <Text style={styles.alertMessage}>
+              {"הרקע האישי החדש שלך מחכה בראש ספריית הרקעים."}
+            </Text>
+            <PrimaryButton
+              label="סגירה"
+              variant="secondary"
+              onPress={handleDismissNewBackgroundModal}
+            />
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={backgroundPendingDeletion !== null}
+        animationType="fade"
+        transparent
+        onRequestClose={handleCancelDeleteBackground}
+      >
+        <View style={styles.alertOverlay}>
+          <Pressable
+            style={styles.alertBackdrop}
+            onPress={handleCancelDeleteBackground}
+            disabled={pendingDeleteInProgress}
+          >
+            <View />
+          </Pressable>
+          <View style={styles.alertCard}>
+            <Text style={styles.alertTitle}>מחיקת רקע</Text>
+            <Text style={styles.alertMessage}>
+              {"האם למחוק לצמיתות את הרקע האישי הזה?"}
+            </Text>
+            <View style={styles.confirmActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleCancelDeleteBackground}
+                disabled={pendingDeleteInProgress}
+                style={({ pressed }) => [
+                  styles.confirmButton,
+                  pressed && !pendingDeleteInProgress
+                    ? styles.confirmButtonPressed
+                    : null,
+                  pendingDeleteInProgress ? styles.confirmButtonDisabled : null,
+                ]}
+              >
+                <Text style={styles.confirmButtonLabel}>ביטול</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleConfirmDeleteBackground}
+                disabled={pendingDeleteInProgress}
+                style={({ pressed }) => [
+                  styles.confirmButton,
+                  styles.confirmButtonDanger,
+                  pressed && !pendingDeleteInProgress
+                    ? styles.confirmButtonPressed
+                    : null,
+                  pendingDeleteInProgress ? styles.confirmButtonDisabled : null,
+                ]}
+              >
+                {pendingDeleteInProgress ? (
+                  <ActivityIndicator color={colors.background} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.confirmButtonLabel,
+                      styles.confirmButtonDangerLabel,
+                    ]}
+                  >
+                    מחיקה
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 };
@@ -664,11 +914,79 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: spacing.md,
   },
+  listWrapper: {
+    flex: 1,
+  },
   listContent: {
     paddingBottom: spacing.xl,
   },
   row: {
     justifyContent: "space-between",
+  },
+  backgroundSpacer: {
+    flex: 1,
+    aspectRatio: 3 / 4,
+    margin: spacing.sm,
+  },
+  deleteButton: {
+    width: "100%",
+    paddingVertical: spacing.md,
+    borderRadius: spacing.lg,
+    backgroundColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deleteButtonPressed: {
+    opacity: 0.85,
+  },
+  deleteButtonDisabled: {
+    opacity: 0.6,
+  },
+  deleteButtonLabel: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.background,
+    textAlign: "center",
+  },
+  confirmActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  confirmButton: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    borderRadius: spacing.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confirmButtonDanger: {
+    backgroundColor: colors.danger,
+    borderColor: "transparent",
+  },
+  confirmButtonPressed: {
+    opacity: 0.9,
+  },
+  confirmButtonDisabled: {
+    opacity: 0.6,
+  },
+  confirmButtonLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.textPrimary,
+    textAlign: "center",
+  },
+  confirmButtonDangerLabel: {
+    color: colors.background,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(58, 32, 22, 0.2)",
   },
   headerCard: {
     marginTop: spacing.md,

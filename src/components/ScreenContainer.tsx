@@ -5,9 +5,16 @@ import { colors, spacing } from '../theme';
 type Props = {
   children: React.ReactNode;
   withScroll?: boolean;
+  avoidKeyboard?: boolean;
 } & ViewProps;
 
-export const ScreenContainer: React.FC<Props> = ({ children, withScroll = true, style, ...rest }) => {
+export const ScreenContainer: React.FC<Props> = ({
+  children,
+  withScroll = true,
+  avoidKeyboard = true,
+  style,
+  ...rest
+}) => {
   const content = withScroll ? (
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.scroll}>
       {children}
@@ -18,13 +25,17 @@ export const ScreenContainer: React.FC<Props> = ({ children, withScroll = true, 
   return (
     <View style={[styles.root, style]} {...rest}>
       <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
-      <KeyboardAvoidingView
-        style={styles.avoiding}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={64}
-      >
-        {content}
-      </KeyboardAvoidingView>
+      {avoidKeyboard ? (
+        <KeyboardAvoidingView
+          style={styles.avoiding}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={64}
+        >
+          {content}
+        </KeyboardAvoidingView>
+      ) : (
+        <View style={styles.avoiding}>{content}</View>
+      )}
     </View>
   );
 };

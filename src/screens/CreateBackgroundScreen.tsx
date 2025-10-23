@@ -150,7 +150,13 @@ const DraggableText: React.FC<DraggableTextProps> = ({
   const startPositionRef = React.useRef(item.position);
   const lastTapRef = React.useRef<number>(0);
   const initialFontRef = React.useRef(item.fontSize);
-  const horizontalSign = I18nManager.isRTL ? -1 : 1;
+  const horizontalSign = I18nManager.getConstants
+    ? I18nManager.getConstants().isRTL
+      ? -1
+      : 1
+    : I18nManager.isRTL
+    ? -1
+    : 1;
 
   useEffect(() => {
     startPositionRef.current = item.position;

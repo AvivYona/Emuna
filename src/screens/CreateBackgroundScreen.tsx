@@ -13,6 +13,7 @@ import {
   TextInput,
   Keyboard,
   useWindowDimensions,
+  I18nManager,
   View,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -149,6 +150,7 @@ const DraggableText: React.FC<DraggableTextProps> = ({
   const startPositionRef = React.useRef(item.position);
   const lastTapRef = React.useRef<number>(0);
   const initialFontRef = React.useRef(item.fontSize);
+  const horizontalSign = I18nManager.isRTL ? -1 : 1;
 
   useEffect(() => {
     startPositionRef.current = item.position;
@@ -179,20 +181,22 @@ const DraggableText: React.FC<DraggableTextProps> = ({
           startPositionRef.current = item.position;
         },
         onPanResponderMove: (_, gestureState) => {
+          const adjustedDx = gestureState.dx * horizontalSign;
           const nextPosition = clampPosition({
-            x: startPositionRef.current.x + gestureState.dx,
+            x: startPositionRef.current.x + adjustedDx,
             y: startPositionRef.current.y + gestureState.dy,
           });
           onMove(item.id, nextPosition);
         },
         onPanResponderRelease: (_, gestureState) => {
+          const adjustedDx = gestureState.dx * horizontalSign;
           const nextPosition = clampPosition({
-            x: startPositionRef.current.x + gestureState.dx,
+            x: startPositionRef.current.x + adjustedDx,
             y: startPositionRef.current.y + gestureState.dy,
           });
           onMove(item.id, nextPosition);
           const isTap =
-            Math.abs(gestureState.dx) < 6 && Math.abs(gestureState.dy) < 6;
+            Math.abs(adjustedDx) < 6 && Math.abs(gestureState.dy) < 6;
           if (isTap) {
             const now = Date.now();
             if (now - lastTapRef.current < 300) {
@@ -204,7 +208,15 @@ const DraggableText: React.FC<DraggableTextProps> = ({
           }
         },
       }),
-    [clampPosition, item.id, item.position, onEdit, onMove, onSelect]
+    [
+      clampPosition,
+      horizontalSign,
+      item.id,
+      item.position,
+      onEdit,
+      onMove,
+      onSelect,
+    ]
   );
 
   const applySizeDelta = useCallback(
@@ -230,29 +242,31 @@ const DraggableText: React.FC<DraggableTextProps> = ({
           onSelect(item.id);
         },
         onPanResponderMove: (_, gestureState) => {
+          const adjustedDx = gestureState.dx * horizontalSign;
           const delta =
             direction === "left"
-              ? -gestureState.dx
+              ? -adjustedDx
               : direction === "right"
-              ? gestureState.dx
+              ? adjustedDx
               : direction === "top"
               ? -gestureState.dy
               : gestureState.dy;
           applySizeDelta(delta);
         },
         onPanResponderRelease: (_, gestureState) => {
+          const adjustedDx = gestureState.dx * horizontalSign;
           const delta =
             direction === "left"
-              ? -gestureState.dx
+              ? -adjustedDx
               : direction === "right"
-              ? gestureState.dx
+              ? adjustedDx
               : direction === "top"
               ? -gestureState.dy
               : gestureState.dy;
           applySizeDelta(delta);
         },
       }),
-    [applySizeDelta, item.fontSize, item.id, onSelect]
+    [applySizeDelta, horizontalSign, item.fontSize, item.id, onSelect]
   );
 
   const leftResizeResponder = useMemo(
@@ -591,13 +605,10 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
     setEditingTextId(id);
   }, []);
 
-  const handleFinishEditing = useCallback(
-    (id: string) => {
-      setEditingTextId((current) => (current === id ? null : current));
-      Keyboard.dismiss();
-    },
-    []
-  );
+  const handleFinishEditing = useCallback((id: string) => {
+    setEditingTextId((current) => (current === id ? null : current));
+    Keyboard.dismiss();
+  }, []);
 
   const handleCanvasPress = useCallback(() => {
     if (editingTextId !== null) {

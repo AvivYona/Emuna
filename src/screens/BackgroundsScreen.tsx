@@ -31,6 +31,7 @@ import { CreateBackgroundCard } from "../components/CreateBackgroundCard";
 import { PrimaryButton } from "../components/PrimaryButton";
 import ViewShot from "react-native-view-shot";
 import { colors, spacing } from "../theme";
+import { SplashScreenOverlay } from "../components/SplashScreenOverlay";
 import { Background } from "../api/types";
 import { getBackgrounds, getBackgroundDisplayName } from "../api/backgrounds";
 import { usePreferences } from "../context/PreferencesContext";
@@ -168,6 +169,8 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const [deletingBackgroundId, setDeletingBackgroundId] = useState<
     string | null
   >(null);
+  const [splashVisible, setSplashVisible] = useState(true);
+  const [splashDelayDone, setSplashDelayDone] = useState(false);
 
   const allBackgrounds = useMemo(
     () => [...customBackgrounds, ...remoteBackgrounds],
@@ -341,6 +344,17 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
       setRefreshing(false);
     }
   }, [isFocused]);
+
+  useEffect(() => {
+    if (!initialLoading) {
+      setSplashVisible(false);
+    }
+  }, [initialLoading]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSplashDelayDone(true), 250);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const highlightId = route.params?.highlightBackgroundId;
@@ -796,6 +810,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
 
   return (
     <>
+      {splashVisible && splashDelayDone ? <SplashScreenOverlay /> : null}
       <Modal
         visible={modalVisible}
         animationType="fade"

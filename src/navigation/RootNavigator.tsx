@@ -7,11 +7,11 @@ import { WelcomeScreen } from "../screens/WelcomeScreen";
 import { ScheduleScreen } from "../screens/ScheduleScreen";
 import { BackgroundsScreen } from "../screens/BackgroundsScreen";
 import { CreateBackgroundScreen } from "../screens/CreateBackgroundScreen";
-import { LoadingState } from "../components/LoadingState";
 import { ShabbatRestrictionScreen } from "../screens/ShabbatRestrictionScreen";
 import { colors } from "../theme";
 import { BackgroundPickerScreen } from "../screens/BackgroundPickerScreen";
 import { Background } from "../api/types";
+import { SplashScreenOverlay } from "../components/SplashScreenOverlay";
 
 export type BackgroundSelectionParam =
   | { type: "clean"; background: Background }
@@ -49,11 +49,11 @@ export const RootNavigator = () => {
   const { loading: restrictionLoading, restriction } = useShabbatRestriction();
 
   if (!loaded) {
-    return <LoadingState label="טוען העדפות..." />;
+    return <SplashScreenOverlay />;
   }
 
   if (!restriction && restrictionLoading) {
-    return <LoadingState label="בודק זמינות..." />;
+    return <SplashScreenOverlay />;
   }
 
   if (restriction) {

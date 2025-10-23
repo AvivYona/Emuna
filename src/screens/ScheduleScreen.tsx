@@ -53,7 +53,7 @@ export const ScheduleScreen: React.FC<ScheduleScreenProps> = ({
   return (
     <ScreenContainer>
       <GlassCard>
-        <Text style={styles.heading}>מתי תרצה לקבל את התזכורת היומית?</Text>
+        <Text style={styles.heading}>מתי תרצה לקבל את הציטוט היומי?</Text>
         <Text style={styles.subtitle}>
           בחר זמן קבוע ביום שבו תופיע התראה עם ציטוט חדש.
         </Text>

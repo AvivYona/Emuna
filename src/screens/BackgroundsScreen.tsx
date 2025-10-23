@@ -29,6 +29,7 @@ import { GlassCard } from "../components/GlassCard";
 import { BackgroundCard } from "../components/BackgroundCard";
 import { CreateBackgroundCard } from "../components/CreateBackgroundCard";
 import { PrimaryButton } from "../components/PrimaryButton";
+import ViewShot from "react-native-view-shot";
 import { colors, spacing } from "../theme";
 import { Background } from "../api/types";
 import { getBackgrounds, getBackgroundDisplayName } from "../api/backgrounds";
@@ -47,6 +48,24 @@ import {
 } from "../storage/customBackgroundsStorage";
 
 const handledNotificationKeys = new Set<string>();
+
+const parseQuoteNotificationPayload = (
+  description: unknown,
+  quoteContent?: string | null
+): { description: string; quote: string | null } | null => {
+  if (typeof description !== "string") {
+    return null;
+  }
+  const trimmedDescription = description.trim();
+  if (!trimmedDescription.length) {
+    return null;
+  }
+  const trimmedQuote =
+    typeof quoteContent === "string" && quoteContent.trim().length
+      ? quoteContent.trim()
+      : null;
+  return { description: trimmedDescription, quote: trimmedQuote };
+};
 
 type NotificationResponseWithDate = Notifications.NotificationResponse & {
   date?: number | Date;
@@ -197,6 +216,52 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const refreshingRef = useRef(false);
   const handledNotificationKeyRef = useRef<string | null>(null);
   const focusTimestampRef = useRef<number>(Date.now());
+  const notificationShareRef = useRef<ViewShot>(null);
+  const applyQuotePreview = useCallback(
+    (description: unknown, quoteContent?: string | null) => {
+      const parsed = parseQuoteNotificationPayload(description, quoteContent);
+      if (!parsed) {
+        return null;
+      }
+      setLastNotificationPreview(parsed);
+      return parsed;
+    },
+    [setLastNotificationPreview]
+  );
+  const refreshLatestDeliveredQuote = useCallback(async () => {
+    if (!wantsQuotes) {
+      return;
+    }
+    try {
+      const presentedNotifications =
+        await Notifications.getPresentedNotificationsAsync();
+      if (!presentedNotifications.length) {
+        return;
+      }
+      const latestWithQuote = presentedNotifications
+        .filter((item) =>
+          parseQuoteNotificationPayload(
+            item.request.content.data?.description,
+            item.request.content.body ?? item.request.content.title ?? null
+          )
+        )
+        .sort((a, b) => a.date - b.date)
+        .pop();
+      if (!latestWithQuote) {
+        return;
+      }
+      const quote =
+        latestWithQuote.request.content.body ??
+        latestWithQuote.request.content.title ??
+        null;
+      applyQuotePreview(
+        latestWithQuote.request.content.data?.description,
+        quote
+      );
+    } catch (error) {
+      console.warn("Failed to read presented notifications", error);
+    }
+  }, [applyQuotePreview, wantsQuotes]);
 
   const loadCustomBackgrounds = useCallback(async () => {
     const customItems = await getCustomBackgrounds();
@@ -265,7 +330,8 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   useFocusEffect(
     useCallback(() => {
       void loadBackgrounds({ refreshRemote: false, showSpinner: false });
-    }, [loadBackgrounds])
+      void refreshLatestDeliveredQuote();
+    }, [loadBackgrounds, refreshLatestDeliveredQuote])
   );
 
   useEffect(() => {
@@ -302,6 +368,27 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
       focusTimestampRef.current = Date.now();
     }
   }, [isFocused]);
+
+  useEffect(() => {
+    if (!wantsQuotes) {
+      return;
+    }
+    const subscription = Notifications.addNotificationReceivedListener(
+      (receivedNotification) => {
+        const quote =
+          receivedNotification.request.content.body ??
+          receivedNotification.request.content.title ??
+          null;
+        applyQuotePreview(
+          receivedNotification.request.content.data?.description,
+          quote
+        );
+      }
+    );
+    return () => {
+      subscription.remove();
+    };
+  }, [applyQuotePreview, wantsQuotes]);
 
   useEffect(() => {
     if (!wantsQuotes) {
@@ -349,18 +436,18 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
 
     handledNotificationKeys.add(notificationKey);
     handledNotificationKeyRef.current = notificationKey;
-    setNotificationDescription(trimmedDescription);
-    setNotificationQuote(quote ? quote.trim() : null);
-    setLastNotificationPreview({
-      quote: quote ? quote.trim() : null,
-      description: trimmedDescription,
-    });
+    const preview = applyQuotePreview(trimmedDescription, quote);
+    if (!preview) {
+      return;
+    }
+    setNotificationDescription(preview.description);
+    setNotificationQuote(preview.quote);
     setPreviewBackground(null);
     setTarget("home");
     setModalVisible(true);
     setSharingQuote(false);
     setSaveInstructionsVisible(false);
-  }, [isFocused, lastNotificationResponse, wantsQuotes, setLastNotificationPreview]);
+  }, [applyQuotePreview, isFocused, lastNotificationResponse, wantsQuotes]);
 
   const handleSelectBackground = (background: Background) => {
     const initialTarget: BackgroundTarget =
@@ -570,18 +657,31 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   ]);
 
   const handleShareNotification = async () => {
-    if (!notificationDescription && !notificationQuote) return;
-    if (sharingQuote) return;
+    if ((!notificationDescription && !notificationQuote) || sharingQuote) {
+      return;
+    }
+    const viewShot = notificationShareRef.current;
+    if (!viewShot || !viewShot.capture) {
+      Alert.alert(
+        "שגיאה בשיתוף הציטוט",
+        "לא הצלחנו להכין את התצוגה לשיתוף. נסו שוב מאוחר יותר."
+      );
+      return;
+    }
 
     setSharingQuote(true);
+    let capturedUri: string | null = null;
     try {
-      const combined = [notificationQuote ?? "", notificationDescription ?? ""]
-        .map((part) => (part ? part.trim() : ""))
-        .filter(Boolean)
-        .join("\n\n");
+      const uri = await viewShot.capture();
+      capturedUri = uri ?? null;
+      if (!capturedUri) {
+        throw new Error("capture-failed");
+      }
 
       await Share.share({
-        message: combined || "ציטוט מאמונה",
+        url: capturedUri,
+        title: "ציטוט מאמונה",
+        message: Platform.OS === "android" ? "ציטוט מאמונה" : undefined,
       });
     } catch (error) {
       console.warn("Error sharing notification quote", error);
@@ -590,6 +690,13 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
         "לא הצלחנו לשתף את הציטוט. נסו שוב מאוחר יותר."
       );
     } finally {
+      if (capturedUri) {
+        try {
+          await FileSystem.deleteAsync(capturedUri, { idempotent: true });
+        } catch (cleanupError) {
+          console.warn("Failed to clean up captured quote image", cleanupError);
+        }
+      }
       setSharingQuote(false);
     }
   };
@@ -629,10 +736,10 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const renderHeader = () => (
     <GlassCard style={styles.headerCard}>
       <Text style={styles.heading}>ספריית הרקעים</Text>
-      <Text style={styles.subtitle}>גלול ובחר רקע שמעצים אותך</Text>
+      <Text style={styles.subtitle}>גללו ובחרו רקע שהתחברתם אליו</Text>
       {wantsQuotes ? (
         <View style={styles.summaryBox}>
-          <Text style={styles.summaryTitle}>התזכורת היומית שלך</Text>
+          <Text style={styles.summaryTitle}>הציטוט היומי</Text>
           <Text style={styles.summaryText}>
             שעה:{" "}
             {notificationTime
@@ -767,14 +874,20 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
                 </>
               ) : notificationDescription ? (
                 <View style={styles.notificationDescriptionBox}>
-                  {notificationQuote ? (
-                    <Text style={styles.notificationQuoteText}>
-                      {notificationQuote}
+                  <ViewShot
+                    ref={notificationShareRef}
+                    style={styles.notificationSharePreview}
+                    options={{ format: "png", quality: 1, result: "tmpfile" }}
+                  >
+                    {notificationQuote ? (
+                      <Text style={styles.notificationQuoteText}>
+                        {notificationQuote}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.notificationDescriptionText}>
+                      {notificationDescription}
                     </Text>
-                  ) : null}
-                  <Text style={styles.notificationDescriptionText}>
-                    {notificationDescription}
-                  </Text>
+                  </ViewShot>
                   <PrimaryButton
                     label="שיתוף הציטוט"
                     onPress={handleShareNotification}
@@ -902,7 +1015,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
           <View style={styles.alertCard}>
             <Text style={styles.alertTitle}>הרקע נשמר</Text>
             <Text style={styles.alertMessage}>
-              {"הרקע האישי החדש שלך מחכה בראש ספריית הרקעים."}
+              {"הרקע האישי החדש שלכם מחכה בראש ספריית הרקעים."}
             </Text>
             <PrimaryButton
               label="סגירה"
@@ -1190,11 +1303,17 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   notificationDescriptionBox: {
+    width: "100%",
+    gap: spacing.md,
+    alignItems: "center",
+  },
+  notificationSharePreview: {
     backgroundColor: colors.card,
     borderRadius: spacing.lg,
-    textAlign: "center",
     padding: spacing.md,
     gap: spacing.xs,
+    alignItems: "center",
+    overflow: "hidden",
   },
   notificationQuoteText: {
     fontSize: 18,

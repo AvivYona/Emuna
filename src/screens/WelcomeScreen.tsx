@@ -133,8 +133,8 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           <>
             <Text style={styles.heading}>ברוכים הבאים לאמונה</Text>
             <Text style={styles.body}>
-              אנחנו כאן כדי להזכיר לך רגע של אמונה בכל יום מחדש. האם תרצה לקבל
-              ציטוט יומי מותאם עבורך?
+              אנחנו כאן כדי להזכיר לכם רגע של אמונה בכל יום מחדש. האם תרצו לקבל
+              ציטוט יומי?
             </Text>
             <PrimaryButton label="כן, שלחו לי ציטוטים" onPress={handleAccept} />
             <PrimaryButton
@@ -146,10 +146,10 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         ) : (
           <>
             <Text style={styles.scheduleHeading}>
-              מתי תרצה לקבל את התזכורת היומית?
+              מתי תרצו לקבל את הציטוט היומי?
             </Text>
             <Text style={styles.scheduleSubtitle}>
-              בחר זמן קבוע ביום שבו תופיע התראה עם ציטוט חדש.
+              בחרו זמן קבוע ביום שבו תופיע התראה עם ציטוט חדש
             </Text>
             {Platform.OS === "android" ? (
               <Pressable onPress={handleOpenPicker} style={styles.timeButton}>

@@ -153,11 +153,14 @@ export const BackgroundPickerScreen: React.FC<BackgroundPickerScreenProps> = ({
       <GlassCard style={styles.card}>
         <Text style={styles.heading}>בחרו רקע אישי</Text>
         <Text style={styles.subheading}>
-          התחילו בבחירת רקע מוכן מגלריית אמונה או העלו תמונה מהמכשיר שלכם.
+          התחילו בבחירת רקע מוכן מתוך גלריית אמונה או העלו תמונה מהטלפון
         </Text>
-        <PrimaryButton label="בחירת רקע מוכן" onPress={handleOpenCleanPicker} />
         <PrimaryButton
-          label="ייבוא תמונה מהטלפון"
+          label="בחרו רקע מאמונה"
+          onPress={handleOpenCleanPicker}
+        />
+        <PrimaryButton
+          label="העלו תמונה מהטלפון"
           onPress={handleImportFromLibrary}
           variant="secondary"
           loading={importing}
@@ -168,12 +171,12 @@ export const BackgroundPickerScreen: React.FC<BackgroundPickerScreenProps> = ({
             <Image source={{ uri: previewUri }} style={styles.previewImage} />
           ) : (
             <Text style={styles.previewPlaceholder}>
-              טרם נבחר רקע להצגה מקדימה.
+              טרם נבחר רקע לתצוגה מקדימה
             </Text>
           )}
         </View>
         <PrimaryButton
-          label="לחץ כאן להמשך עריכה"
+          label="המשיכו לעריכה"
           onPress={handleContinue}
           disabled={!selection}
         />

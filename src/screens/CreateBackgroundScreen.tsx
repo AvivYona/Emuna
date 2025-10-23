@@ -15,7 +15,9 @@ import {
   useWindowDimensions,
   I18nManager,
   View,
+  LayoutChangeEvent,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import ViewShot from "react-native-view-shot";
 import * as FileSystem from "expo-file-system";
@@ -73,6 +75,109 @@ const TEXT_BOUNDARY_MARGIN = 48;
 const RESIZE_HANDLE_SIZE = 18;
 const RESIZE_HANDLE_OFFSET = RESIZE_HANDLE_SIZE / 2;
 const RESIZE_SCALE_FACTOR = 0.35;
+const COLOR_GRADIENT_STOPS = [
+  "#ff0000",
+  "#ffff00",
+  "#00ff00",
+  "#00ffff",
+  "#0000ff",
+  "#ff00ff",
+  "#ff0000",
+] as const;
+const COLOR_GRADIENT_HEIGHT = 24;
+const COLOR_THUMB_SIZE = 20;
+
+type RgbColor = {
+  r: number;
+  g: number;
+  b: number;
+};
+
+const clampColorComponent = (value: number): number =>
+  Math.max(0, Math.min(255, Math.round(value)));
+
+const componentToHex = (value: number): string =>
+  clampColorComponent(value).toString(16).padStart(2, "0");
+
+const rgbToHex = ({ r, g, b }: RgbColor): string =>
+  `#${componentToHex(r)}${componentToHex(g)}${componentToHex(b)}`;
+
+const hexToRgb = (value: string | undefined): RgbColor | null => {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim().replace(/^#/, "");
+  if (/^[0-9a-fA-F]{3}$/.test(trimmed)) {
+    const [r, g, b] = trimmed.split("");
+    return {
+      r: parseInt(`${r}${r}`, 16),
+      g: parseInt(`${g}${g}`, 16),
+      b: parseInt(`${b}${b}`, 16),
+    };
+  }
+  if (/^[0-9a-fA-F]{6}$/.test(trimmed)) {
+    return {
+      r: parseInt(trimmed.slice(0, 2), 16),
+      g: parseInt(trimmed.slice(2, 4), 16),
+      b: parseInt(trimmed.slice(4, 6), 16),
+    };
+  }
+  return null;
+};
+
+const rgbToHue = ({ r, g, b }: RgbColor): number => {
+  const rNorm = r / 255;
+  const gNorm = g / 255;
+  const bNorm = b / 255;
+  const max = Math.max(rNorm, gNorm, bNorm);
+  const min = Math.min(rNorm, gNorm, bNorm);
+  const delta = max - min;
+  if (delta === 0) {
+    return 0;
+  }
+  let hue = 0;
+  switch (max) {
+    case rNorm:
+      hue = ((gNorm - bNorm) / delta) % 6;
+      break;
+    case gNorm:
+      hue = (bNorm - rNorm) / delta + 2;
+      break;
+    default:
+      hue = (rNorm - gNorm) / delta + 4;
+      break;
+  }
+  hue *= 60;
+  if (hue < 0) {
+    hue += 360;
+  }
+  return hue;
+};
+
+const hueToRgb = (p: number, q: number, t: number) => {
+  if (t < 0) t += 1;
+  if (t > 1) t -= 1;
+  if (t < 1 / 6) return p + (q - p) * 6 * t;
+  if (t < 1 / 2) return q;
+  if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+  return p;
+};
+
+const hueToHex = (hue: number, saturation = 1, lightness = 0.5): string => {
+  const h = ((hue % 360) + 360) % 360;
+  const s = Math.max(0, Math.min(1, saturation));
+  const l = Math.max(0, Math.min(1, lightness));
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const r = hueToRgb(p, q, h / 360 + 1 / 3);
+  const g = hueToRgb(p, q, h / 360);
+  const b = hueToRgb(p, q, h / 360 - 1 / 3);
+  return rgbToHex({
+    r: Math.round(r * 255),
+    g: Math.round(g * 255),
+    b: Math.round(b * 255),
+  });
+};
 
 const FONT_OPTIONS: Array<{ label: string; value: string }> = [
   {
@@ -431,11 +536,28 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
     [selectedTextId, texts]
   );
 
+  const [customHue, setCustomHue] = useState<number>(() => {
+    const base = hexToRgb(colors.textPrimary);
+    return base ? rgbToHue(base) : 0;
+  });
+  const [gradientWidth, setGradientWidth] = useState(0);
+  const customHexColor = useMemo(() => hueToHex(customHue), [customHue]);
+
   useEffect(() => {
     if (!selectedText) {
       setActiveTextPanel(null);
     }
   }, [selectedText]);
+
+  useEffect(() => {
+    if (!selectedText) {
+      return;
+    }
+    const parsed = hexToRgb(selectedText.color);
+    if (parsed) {
+      setCustomHue(rgbToHue(parsed));
+    }
+  }, [selectedText?.color]);
 
   useEffect(() => {
     if (initialBackground.type === "clean") {
@@ -572,6 +694,47 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
       }));
     },
     [updateText]
+  );
+
+  const handleHueAtPosition = useCallback(
+    (position: number) => {
+      if (gradientWidth <= 0) {
+        return;
+      }
+      const ratio = Math.max(0, Math.min(1, position / gradientWidth));
+      const nextHue = ratio * 360;
+      setCustomHue(nextHue);
+      if (selectedText) {
+        handleChangeColor(selectedText.id, hueToHex(nextHue));
+      }
+    },
+    [gradientWidth, handleChangeColor, selectedText]
+  );
+
+  const gradientIndicatorPosition = useMemo(() => {
+    if (gradientWidth <= 0) {
+      return 0;
+    }
+    return (customHue / 360) * gradientWidth;
+  }, [customHue, gradientWidth]);
+
+  const handleGradientLayout = useCallback((event: LayoutChangeEvent) => {
+    setGradientWidth(event.nativeEvent.layout.width);
+  }, []);
+
+  const gradientPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (evt) => {
+          handleHueAtPosition(evt.nativeEvent.locationX);
+        },
+        onPanResponderMove: (evt) => {
+          handleHueAtPosition(evt.nativeEvent.locationX);
+        },
+      }),
+    [handleHueAtPosition]
   );
 
   const handleAdjustFontSize = useCallback(
@@ -764,6 +927,43 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
                 onPress={() => handleChangeColor(selectedText.id, colorValue)}
               />
             ))}
+          </View>
+          <View style={styles.customColorSection}>
+            <Text style={styles.customColorTitle}>צבע מותאם אישית</Text>
+            <View
+              style={[
+                styles.customColorPreview,
+                { backgroundColor: customHexColor },
+              ]}
+            />
+            <View
+              style={styles.customColorGradientContainer}
+              onLayout={handleGradientLayout}
+              {...gradientPanResponder.panHandlers}
+            >
+              <LinearGradient
+                colors={COLOR_GRADIENT_STOPS}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.customColorGradient}
+              />
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.customColorThumb,
+                  {
+                    left:
+                      Math.max(
+                        0,
+                        Math.min(gradientWidth, gradientIndicatorPosition)
+                      ) -
+                      COLOR_THUMB_SIZE / 2,
+                    backgroundColor: customHexColor,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.customColorHex}>{customHexColor}</Text>
           </View>
           <Pressable
             style={({ pressed }) => [
@@ -1163,6 +1363,50 @@ const styles = StyleSheet.create({
   },
   colorSwatchSelected: {
     borderColor: colors.accent,
+  },
+  customColorSection: {
+    width: "100%",
+    marginTop: spacing.md,
+    gap: spacing.sm,
+  },
+  customColorTitle: {
+    textAlign: "center",
+    color: colors.textPrimary,
+    fontWeight: "600",
+  },
+  customColorPreview: {
+    height: 48,
+    borderRadius: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
+  customColorGradientContainer: {
+    width: "100%",
+    height: COLOR_GRADIENT_HEIGHT,
+    borderRadius: COLOR_GRADIENT_HEIGHT / 2,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.divider,
+    justifyContent: "center",
+    position: "relative",
+  },
+  customColorGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  customColorThumb: {
+    position: "absolute",
+    top: (COLOR_GRADIENT_HEIGHT - COLOR_THUMB_SIZE) / 2,
+    width: COLOR_THUMB_SIZE,
+    height: COLOR_THUMB_SIZE,
+    borderRadius: COLOR_THUMB_SIZE / 2,
+    borderWidth: 2,
+    borderColor: colors.background,
+  },
+  customColorHex: {
+    textAlign: "center",
+    color: colors.textPrimary,
+    fontWeight: "600",
+    letterSpacing: 1,
   },
   fontControls: {
     flexDirection: "row",

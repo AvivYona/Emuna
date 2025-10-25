@@ -25,18 +25,8 @@ export const ShabbatRestrictionScreen: React.FC<
         <Image source={appIcon} style={styles.icon} resizeMode="contain" />
         <Text style={styles.heading}>{title}</Text>
         <Text style={styles.subheading}>
-          האפליקציה אינה זמינה כעת בשבתות ובמועדי ישראל.
+          האפליקציה אינה זמינה בשבתות ובמועדי ישראל.
         </Text>
-        <Text style={styles.description}>
-          מוזמנים לחזור אלינו בצאת השבת או החג. ניתן לבדוק את הסטטוס מאוחר יותר.
-        </Text>
-        <PrimaryButton
-          label={loading ? "בודק..." : "בדיקת זמינות"}
-          onPress={refresh}
-          disabled={loading}
-          loading={loading}
-          style={styles.button}
-        />
       </View>
     </SafeAreaView>
   );
@@ -70,15 +60,5 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.textPrimary,
     textAlign: "center",
-  },
-  description: {
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 22,
-  },
-  button: {
-    marginTop: spacing.lg,
-    width: "100%",
   },
 });

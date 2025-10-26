@@ -951,20 +951,37 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
       } catch (cleanupError) {
         console.warn("Failed to remove previous background file", cleanupError);
       }
+      let persistedSuccessfully = false;
       try {
-        await FileSystem.copyAsync({
+        await FileSystem.moveAsync({
           from: normalizedCaptureUri,
           to: targetPath,
         });
-      } catch (copyError) {
-        console.warn("Failed to copy captured background", copyError);
-        throw copyError;
+        persistedSuccessfully = true;
+      } catch (moveError) {
+        console.warn("Failed to move captured background", moveError);
       }
-      try {
-        await FileSystem.deleteAsync(normalizedCaptureUri, { idempotent: true });
-      } catch (cleanupError) {
-        console.warn("Failed to delete captured temp file", cleanupError);
+
+      if (!persistedSuccessfully) {
+        try {
+          await FileSystem.copyAsync({
+            from: normalizedCaptureUri,
+            to: targetPath,
+          });
+          persistedSuccessfully = true;
+        } catch (copyError) {
+          console.warn("Failed to copy captured background", copyError);
+          throw copyError;
+        }
+        try {
+          await FileSystem.deleteAsync(normalizedCaptureUri, {
+            idempotent: true,
+          });
+        } catch (cleanupError) {
+          console.warn("Failed to delete captured temp file", cleanupError);
+        }
       }
+
       const persistedInfo = await FileSystem.getInfoAsync(targetPath);
       if (!persistedInfo.exists) {
         throw new Error("CUSTOM_BACKGROUND_PERSIST_FAILED");

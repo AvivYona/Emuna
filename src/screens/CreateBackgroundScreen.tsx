@@ -16,10 +16,11 @@ import {
   I18nManager,
   View,
   LayoutChangeEvent,
+  InteractionManager,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import ViewShot from "react-native-view-shot";
+import { captureRef } from "react-native-view-shot";
 import * as FileSystem from "expo-file-system";
 import { ScreenContainer } from "../components/ScreenContainer";
 import { PrimaryButton } from "../components/PrimaryButton";
@@ -86,6 +87,56 @@ const COLOR_GRADIENT_STOPS = [
 ] as const;
 const COLOR_GRADIENT_HEIGHT = 24;
 const COLOR_THUMB_SIZE = 20;
+const CUSTOM_BACKGROUND_DIRECTORY = "custom-backgrounds";
+
+const ensureTrailingSlash = (value: string): string =>
+  value.endsWith("/") ? value : `${value}/`;
+
+const buildDirectoryPath = (base: string, folder: string): string =>
+  ensureTrailingSlash(
+    ensureTrailingSlash(base).concat(folder.replace(/^\/+/, ""))
+  );
+
+const normalizeFileUri = (uri: string): string => {
+  if (!uri) {
+    return uri;
+  }
+  if (uri.startsWith("file://")) {
+    return uri;
+  }
+  if (uri.startsWith("file:")) {
+    const withoutScheme = uri.replace(/^file:\/*/, "");
+    const normalizedPath = withoutScheme.startsWith("/")
+      ? withoutScheme
+      : `/${withoutScheme}`;
+    return `file://${normalizedPath}`;
+  }
+  return uri;
+};
+
+async function ensureDirectoryExists(dir: string): Promise<void> {
+  const info = await FileSystem.getInfoAsync(dir);
+  if (info.exists) {
+    if (!info.isDirectory) {
+      throw new Error("CUSTOM_BACKGROUND_DIR_CONFLICT");
+    }
+    return;
+  }
+  await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+}
+
+async function waitForCondition(
+  test: () => boolean,
+  attempts = 10,
+  delayMs = 60
+): Promise<void> {
+  for (let i = 0; i < attempts; i += 1) {
+    if (test()) {
+      return;
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+  }
+}
 
 type RgbColor = {
   r: number;
@@ -506,12 +557,14 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
   );
   const [saving, setSaving] = useState(false);
   const [showQuoteLibrary, setShowQuoteLibrary] = useState(false);
+  const [canvasBackgroundReady, setCanvasBackgroundReady] = useState(false);
+  const [viewShotLayoutReady, setViewShotLayoutReady] = useState(false);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [activeTextPanel, setActiveTextPanel] = useState<TextPanel>(null);
   const [showEditingChrome, setShowEditingChrome] = useState(true);
   const [confirmExitVisible, setConfirmExitVisible] = useState(false);
 
-  const viewShotRef = React.useRef<ViewShot>(null);
+  const canvasCaptureRef = React.useRef<View | null>(null);
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
   const canvasDimensions = useMemo(() => {
@@ -565,7 +618,22 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
     } else {
       setCanvasBackgroundUri(initialBackground.uri);
     }
+    setCanvasBackgroundReady(false);
+    setViewShotLayoutReady(false);
   }, [initialBackground]);
+
+  useEffect(() => {
+    if (!canvasBackgroundUri) {
+      setCanvasBackgroundReady(true);
+    } else {
+      setCanvasBackgroundReady(false);
+    }
+    setViewShotLayoutReady(false);
+  }, [canvasBackgroundUri]);
+
+  useEffect(() => {
+    setViewShotLayoutReady(false);
+  }, [canvasDimensions.height, canvasDimensions.width]);
 
   const updateText = useCallback(
     (id: string, updater: (current: EditableText) => EditableText) => {
@@ -792,8 +860,15 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
     if (saving) {
       return;
     }
-    if (!viewShotRef.current) {
+    if (!canvasCaptureRef.current) {
       Alert.alert("שגיאה", "לא הצלחנו לגשת לשטח העריכה. נסו שוב.");
+      return;
+    }
+    if (canvasBackgroundUri && !canvasBackgroundReady) {
+      Alert.alert(
+        "התמונה עדיין נטענת",
+        "המתינו לסיום טעינת הרקע לפני השמירה."
+      );
       return;
     }
     const baseDir = FileSystem.documentDirectory;
@@ -809,18 +884,30 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
       setEditingTextId(null);
       setShowEditingChrome(false);
       await new Promise<void>((resolve) =>
+        InteractionManager.runAfterInteractions(() => resolve())
+      );
+      await new Promise<void>((resolve) =>
         requestAnimationFrame(() => resolve())
       );
       await new Promise<void>((resolve) => setTimeout(resolve, 80));
-      const capture = viewShotRef.current.capture?.bind(viewShotRef.current);
-      if (!capture) {
-        throw new Error("CAPTURE_METHOD_MISSING");
+      await waitForCondition(() => viewShotLayoutReady, 12, 40);
+      if (!viewShotLayoutReady) {
+        throw new Error("CANVAS_LAYOUT_PENDING");
       }
       let captureUri: string | undefined;
       let captureError: unknown = null;
       for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
-          captureUri = await capture();
+          const targetNode = canvasCaptureRef.current;
+          if (!targetNode) {
+            throw new Error("CAPTURE_TARGET_MISSING");
+          }
+          captureUri = await captureRef(targetNode, {
+            format: "jpg",
+            quality: 0.95,
+            result: "tmpfile",
+            snapshotContentContainer: false,
+          });
           if (captureUri) {
             break;
           }
@@ -845,30 +932,42 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
         }
         throw new Error("CAPTURE_FAILED");
       }
-      const targetDir = `${baseDir}custom-backgrounds`;
-      try {
-        await FileSystem.makeDirectoryAsync(targetDir, { intermediates: true });
-      } catch (error) {
-        // Directory may already exist; ignore.
-      }
       const identifier = `custom-${Date.now()}`;
-      const targetPath = `${targetDir}/${identifier}.jpg`;
+      const targetDir = buildDirectoryPath(baseDir, CUSTOM_BACKGROUND_DIRECTORY);
+      try {
+        await ensureDirectoryExists(targetDir);
+      } catch (dirError) {
+        console.warn("Failed to prepare custom background directory", dirError);
+        throw dirError;
+      }
+      const normalizedCaptureUri = normalizeFileUri(captureUri);
+      const captureInfo = await FileSystem.getInfoAsync(normalizedCaptureUri);
+      if (!captureInfo.exists) {
+        throw new Error("CAPTURE_FILE_MISSING");
+      }
+      const targetPath = `${targetDir}${identifier}.jpg`;
       try {
         await FileSystem.deleteAsync(targetPath, { idempotent: true });
       } catch (cleanupError) {
         console.warn("Failed to remove previous background file", cleanupError);
       }
       try {
-        await FileSystem.moveAsync({ from: captureUri, to: targetPath });
-      } catch (moveError) {
-        console.warn("Failed to move captured background", moveError);
-        console.warn("Falling back to copy", { captureUri, targetPath });
-        await FileSystem.copyAsync({ from: captureUri, to: targetPath });
-        try {
-          await FileSystem.deleteAsync(captureUri, { idempotent: true });
-        } catch (cleanupError) {
-          console.warn("Failed to delete captured temp file", cleanupError);
-        }
+        await FileSystem.copyAsync({
+          from: normalizedCaptureUri,
+          to: targetPath,
+        });
+      } catch (copyError) {
+        console.warn("Failed to copy captured background", copyError);
+        throw copyError;
+      }
+      try {
+        await FileSystem.deleteAsync(normalizedCaptureUri, { idempotent: true });
+      } catch (cleanupError) {
+        console.warn("Failed to delete captured temp file", cleanupError);
+      }
+      const persistedInfo = await FileSystem.getInfoAsync(targetPath);
+      if (!persistedInfo.exists) {
+        throw new Error("CUSTOM_BACKGROUND_PERSIST_FAILED");
       }
 
       const background: Background = {
@@ -890,7 +989,13 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
       setShowEditingChrome(true);
       setSaving(false);
     }
-  }, [navigation, saving]);
+  }, [
+    canvasBackgroundReady,
+    canvasBackgroundUri,
+    navigation,
+    saving,
+    viewShotLayoutReady,
+  ]);
 
   const handleBackToLibrary = useCallback(() => {
     setConfirmExitVisible(true);
@@ -906,6 +1011,10 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
   }, [navigation]);
 
   const disableTextTools = !selectedText;
+  const disableSaveAction =
+    saving ||
+    (canvasBackgroundUri !== null && !canvasBackgroundReady) ||
+    !viewShotLayoutReady;
 
   const renderTextPanel = () => {
     if (!selectedText || !activeTextPanel) {
@@ -1103,8 +1212,9 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
         </View>
 
         <View style={styles.canvasSection}>
-          <ViewShot
-            ref={viewShotRef}
+          <View
+            ref={canvasCaptureRef}
+            collapsable={false}
             style={[
               styles.canvasShot,
               {
@@ -1112,15 +1222,32 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
                 height: canvasDimensions.height,
               },
             ]}
-            options={{ format: "jpg", quality: 0.95, result: "tmpfile" }}
+            onLayout={() => setViewShotLayoutReady(true)}
           >
-            <View style={styles.canvas}>
+            <View style={styles.canvas} collapsable={false}>
               <View style={styles.canvasBase} />
               {canvasBackgroundUri ? (
                 <Image
                   source={{ uri: canvasBackgroundUri }}
                   style={styles.canvasImage}
+                  onLoad={() => setCanvasBackgroundReady(true)}
+                  onError={(event) => {
+                    console.warn(
+                      "Failed to load canvas background",
+                      event?.nativeEvent ?? event
+                    );
+                    setCanvasBackgroundReady(false);
+                    Alert.alert(
+                      "שגיאה בטעינת הרקע",
+                      "לא הצלחנו לטעון את התמונה. נסו לבחור תמונה אחרת."
+                    );
+                  }}
                 />
+              ) : null}
+              {canvasBackgroundUri && !canvasBackgroundReady ? (
+                <View style={styles.canvasLoadingOverlay}>
+                  <ActivityIndicator color={colors.background} />
+                </View>
               ) : null}
               <Pressable
                 style={styles.canvasTouchOverlay}
@@ -1147,7 +1274,7 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
                 />
               ))}
             </View>
-          </ViewShot>
+          </View>
           {renderTextPanel()}
         </View>
       </View>
@@ -1166,7 +1293,7 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
           label="הרקע מוכן"
           onPress={handleSaveBackground}
           loading={saving}
-          disabled={saving}
+          disabled={disableSaveAction}
         />
       </View>
 
@@ -1302,6 +1429,12 @@ const styles = StyleSheet.create({
   canvasImage: {
     ...StyleSheet.absoluteFillObject,
     resizeMode: "cover",
+  },
+  canvasLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.15)",
   },
   canvasTouchOverlay: {
     ...StyleSheet.absoluteFillObject,

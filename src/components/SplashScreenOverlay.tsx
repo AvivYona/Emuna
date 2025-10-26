@@ -6,9 +6,7 @@ export interface SplashScreenOverlayProps {
   footerText?: string;
 }
 
-export const SplashScreenOverlay: React.FC<SplashScreenOverlayProps> = ({
-  footerText = "פותח על ידי אביב יונה",
-}) => {
+export const SplashScreenOverlay: React.FC<SplashScreenOverlayProps> = () => {
   const logoSize = useMemo(() => {
     const width = Dimensions.get("window").width;
     return Math.min(width * 0.65, 320);
@@ -21,7 +19,6 @@ export const SplashScreenOverlay: React.FC<SplashScreenOverlayProps> = ({
         style={[styles.logo, { width: logoSize, height: logoSize }]}
         resizeMode="contain"
       />
-      <Text style={styles.footer}>{footerText}</Text>
     </View>
   );
 };

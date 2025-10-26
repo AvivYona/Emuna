@@ -13,6 +13,7 @@ import {
   Alert,
   ActivityIndicator,
   FlatList,
+  Image,
   ImageBackground,
   Modal,
   Platform,
@@ -22,6 +23,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { RootStackParamList } from "../navigation/RootNavigator";
 import { ScreenContainer } from "../components/ScreenContainer";
@@ -147,6 +149,11 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   const [previewBackground, setPreviewBackground] = useState<Background | null>(
     null
   );
+  const windowDimensions = useWindowDimensions();
+  const [previewDimensions, setPreviewDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
   const [notificationDescription, setNotificationDescription] = useState<
     string | null
   >(null);
@@ -170,7 +177,8 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     string | null
   >(null);
   const [splashVisible, setSplashVisible] = useState(true);
-  const [splashDelayDone, setSplashDelayDone] = useState(false);
+  const [minimumSplashTimeElapsed, setMinimumSplashTimeElapsed] =
+    useState(false);
 
   const allBackgrounds = useMemo(
     () => [...customBackgrounds, ...remoteBackgrounds],
@@ -346,13 +354,13 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
   }, [isFocused]);
 
   useEffect(() => {
-    if (!initialLoading) {
+    if (!initialLoading && minimumSplashTimeElapsed) {
       setSplashVisible(false);
     }
-  }, [initialLoading]);
+  }, [initialLoading, minimumSplashTimeElapsed]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setSplashDelayDone(true), 250);
+    const timer = setTimeout(() => setMinimumSplashTimeElapsed(true), 250);
     return () => clearTimeout(timer);
   }, []);
 
@@ -382,6 +390,52 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
       focusTimestampRef.current = Date.now();
     }
   }, [isFocused]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!previewBackground) {
+      setPreviewDimensions(null);
+      return;
+    }
+
+    const maxWidth = Math.max(
+      180,
+      Math.min(windowDimensions.width - spacing.lg * 2, 260)
+    );
+    const maxHeight = Math.max(
+      240,
+      Math.min(windowDimensions.height * 0.55, 320)
+    );
+
+    const applySize = (width: number, height: number) => {
+      const safeWidth = width > 0 ? width : maxWidth;
+      const safeHeight = height > 0 ? height : maxHeight;
+      const widthScale = maxWidth / safeWidth;
+      const heightScale = maxHeight / safeHeight;
+      const scale = Math.min(1, widthScale, heightScale);
+      const nextWidth = Math.round(safeWidth * scale);
+      const nextHeight = Math.round(safeHeight * scale);
+      if (!cancelled) {
+        setPreviewDimensions({ width: nextWidth, height: nextHeight });
+      }
+    };
+
+    const sourceUri =
+      previewBackground.thumbnailUrl ?? previewBackground.imageUrl;
+    Image.getSize(
+      sourceUri,
+      (width, height) => {
+        applySize(width, height);
+      },
+      () => {
+        applySize(720, 1280);
+      }
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [previewBackground, windowDimensions.height, windowDimensions.width]);
 
   useEffect(() => {
     if (!wantsQuotes) {
@@ -570,11 +624,12 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
           );
           return;
         }
+        Alert.alert(error.message);
       }
-      Alert.alert(
-        "שגיאה בשמירת הרקע",
-        "לא הצלחנו לשמור את הרקע. נסו שוב מאוחר יותר."
-      );
+      // Alert.alert(
+      //   "שגיאה בשמירת הרקע",
+      //   "לא הצלחנו לשמור את הרקע. נסו שוב מאוחר יותר."
+      // );
     } finally {
       setLoadingAction(null);
     }
@@ -810,7 +865,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
 
   return (
     <>
-      {splashVisible && splashDelayDone ? <SplashScreenOverlay /> : null}
+      {splashVisible ? <SplashScreenOverlay /> : null}
       <Modal
         visible={modalVisible}
         animationType="fade"
@@ -831,7 +886,15 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
                 <>
                   <ImageBackground
                     source={{ uri: previewBackground.imageUrl }}
-                    style={styles.modalImage}
+                    style={[
+                      styles.modalImage,
+                      previewDimensions
+                        ? {
+                            width: previewDimensions.width,
+                            height: previewDimensions.height,
+                          }
+                        : null,
+                    ]}
                     imageStyle={styles.modalImageRadius}
                   />
 
@@ -1302,10 +1365,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   modalImage: {
-    height: 400,
+    width: 220,
+    height: 320,
     borderRadius: spacing.lg,
     overflow: "hidden",
     justifyContent: "flex-end",
+    alignSelf: "center",
+    backgroundColor: colors.card,
   },
   modalImageRadius: {
     borderRadius: spacing.lg,

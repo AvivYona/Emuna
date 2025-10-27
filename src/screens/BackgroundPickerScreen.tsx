@@ -170,9 +170,7 @@ export const BackgroundPickerScreen: React.FC<BackgroundPickerScreenProps> = ({
           {previewUri ? (
             <Image source={{ uri: previewUri }} style={styles.previewImage} />
           ) : (
-            <Text style={styles.previewPlaceholder}>
-              טרם נבחר רקע לתצוגה מקדימה
-            </Text>
+            <></>
           )}
         </View>
         <PrimaryButton
@@ -288,10 +286,6 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     resizeMode: "cover",
-  },
-  previewPlaceholder: {
-    fontSize: 16,
-    color: colors.textSecondary,
   },
   closeButton: {
     paddingVertical: spacing.sm,

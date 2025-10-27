@@ -761,9 +761,19 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
     } finally {
       if (capturedUri) {
         try {
-          await FileSystem.deleteAsync(capturedUri, { idempotent: true });
+          const cacheDir = FileSystem.cacheDirectory;
+          const documentDir = FileSystem.documentDirectory;
+          const shouldDelete =
+            (cacheDir && capturedUri.startsWith(cacheDir)) ||
+            (documentDir && capturedUri.startsWith(documentDir));
+          if (shouldDelete) {
+            await FileSystem.deleteAsync(capturedUri, { idempotent: true });
+          }
         } catch (cleanupError) {
-          console.warn("Failed to clean up captured quote image", cleanupError);
+          console.warn(
+            "Failed to clean up captured quote image",
+            cleanupError
+          );
         }
       }
       setSharingQuote(false);
@@ -957,6 +967,10 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
                     style={styles.notificationSharePreview}
                     options={{ format: "png", quality: 1, result: "tmpfile" }}
                   >
+                    <Image
+                      source={require("../../assets/logo.png")}
+                      style={styles.notificationShareLogo}
+                    />
                     {notificationQuote ? (
                       <Text style={styles.notificationQuoteText}>
                         {notificationQuote}
@@ -1395,6 +1409,12 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     alignItems: "center",
     overflow: "hidden",
+  },
+  notificationShareLogo: {
+    width: 68,
+    height: 68,
+    resizeMode: "contain",
+    marginBottom: spacing.xs,
   },
   notificationQuoteText: {
     fontSize: 18,

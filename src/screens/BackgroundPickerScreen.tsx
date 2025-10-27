@@ -273,7 +273,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   previewBox: {
-    height: 260,
+    alignSelf: "center",
+    width: 120,
+    aspectRatio: 9 / 19.5,
     borderRadius: spacing.lg,
     borderWidth: 1,
     borderColor: colors.divider,
@@ -285,6 +287,7 @@ const styles = StyleSheet.create({
   previewImage: {
     width: "100%",
     height: "100%",
+    resizeMode: "cover",
   },
   previewPlaceholder: {
     fontSize: 16,

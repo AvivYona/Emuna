@@ -8,8 +8,13 @@ import { PreferencesProvider } from "./src/context/PreferencesContext";
 import { ShabbatRestrictionProvider } from "./src/context/ShabbatContext";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 import { colors } from "./src/theme";
+import { useFonts } from "expo-font";
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    PlaypenSansHebrew: require("./assets/fonts/PlaypenSansHebrew-VariableFont_wght.ttf"),
+  });
+
   useEffect(() => {
     if (!I18nManager.isRTL) {
       I18nManager.allowRTL(true);
@@ -28,6 +33,10 @@ export default function App() {
       }).catch((error) => console.warn("כישלון בקביעת ערוץ התראות", error));
     }
   }, []);
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
     <GestureHandlerRootView

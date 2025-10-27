@@ -50,6 +50,7 @@ type EditableText = {
   content: string;
   fontSize: number;
   fontFamily: string;
+  fontId: string | null;
   fontWeight: TextStyle["fontWeight"];
   color: string;
   position: Position;
@@ -233,70 +234,62 @@ const hueToHex = (hue: number, saturation = 1, lightness = 0.5): string => {
   });
 };
 
-const FONT_OPTIONS: Array<{ label: string; value: string }> = [
+type FontOption = {
+  id: string;
+  label: string;
+  family: {
+    ios: string;
+    android: string;
+    default: string;
+  };
+};
+
+const FONT_OPTIONS: FontOption[] = [
   {
+    id: "serif",
     label: "קלאסי",
-    value:
-      Platform.select({
-        ios: "Times New Roman",
-        android: "serif",
-        default: "serif",
-      }) ?? "serif",
+    family: {
+      ios: "Georgia",
+      android: "serif",
+      default: "serif",
+    },
   },
   {
+    id: "modern",
     label: "מודרני",
-    value:
-      Platform.select({
-        ios: "Avenir Next",
-        android: "sans-serif",
-        default: "sans-serif",
-      }) ?? "sans-serif",
+    family: {
+      ios: "sans-serif",
+      android: "sans-serif",
+      default: "sans-serif",
+    },
   },
   {
-    label: "נקי",
-    value:
-      Platform.select({
-        ios: "Helvetica Neue",
-        android: "sans-serif-light",
-        default: "sans-serif",
-      }) ?? "sans-serif",
-  },
-  {
-    label: "כתב מודגש",
-    value:
-      Platform.select({
-        ios: "Arial Hebrew",
-        android: "sans-serif-medium",
-        default: "sans-serif",
-      }) ?? "sans-serif",
-  },
-  {
-    label: "עגול",
-    value:
-      Platform.select({
-        ios: "Gill Sans",
-        android: "sans-serif",
-        default: "sans-serif",
-      }) ?? "sans-serif",
-  },
-  {
+    id: "handwriting",
     label: "כתב יד",
-    value:
-      Platform.select({
-        ios: "Snell Roundhand",
-        android: "casual",
-        default: "cursive",
-      }) ?? "cursive",
+    family: {
+      ios: "PlaypenSansHebrew",
+      android: "PlaypenSansHebrew",
+      default: "PlaypenSansHebrew",
+    },
   },
 ];
+
+const resolveFontFamily = (option: FontOption): string =>
+  Platform.select({
+    ios: option.family.ios,
+    android: option.family.android,
+    default: option.family.default,
+  }) ?? option.family.default;
+
+const findFontOptionByFamily = (fontFamily: string): FontOption | undefined =>
+  FONT_OPTIONS.find((option) => resolveFontFamily(option) === fontFamily);
 
 const FONT_WEIGHT_OPTIONS: Array<{
   label: string;
   value: TextStyle["fontWeight"];
 }> = [
   { label: "רגיל", value: "400" },
-  { label: "מודגש", value: "600" },
-  { label: "חזק", value: "700" },
+  { label: "מודגש", value: "700" },
 ];
 
 const COLOR_SWATCHES = [
@@ -586,6 +579,43 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [quotesLoading, setQuotesLoading] = useState(false);
   const [texts, setTexts] = useState<EditableText[]>([]);
+
+  useEffect(() => {
+    setTexts((items) => {
+      let changed = false;
+      const nextItems = items.map((item) => {
+        const nextFontId =
+          item.fontId ?? findFontOptionByFamily(item.fontFamily)?.id;
+        const option = nextFontId
+          ? FONT_OPTIONS.find((candidate) => candidate.id === nextFontId)
+          : undefined;
+        if (!option) {
+          return {
+            ...item,
+            fontId: item.fontId ?? FONT_OPTIONS[0].id,
+            fontFamily: resolveFontFamily(FONT_OPTIONS[0]),
+            fontWeight: item.fontWeight ?? FONT_WEIGHT_OPTIONS[0].value,
+          };
+        }
+        const resolvedFamily = resolveFontFamily(option);
+        if (
+          item.fontId === option.id &&
+          item.fontFamily === resolvedFamily &&
+          item.fontWeight
+        ) {
+          return item;
+        }
+        changed = true;
+        return {
+          ...item,
+          fontId: option.id,
+          fontFamily: resolvedFamily,
+          fontWeight: item.fontWeight ?? FONT_WEIGHT_OPTIONS[0].value,
+        };
+      });
+      return changed ? nextItems : items;
+    });
+  }, []);
   const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
   const [canvasBackgroundUri, setCanvasBackgroundUri] = useState<string | null>(
     null
@@ -737,16 +767,17 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
         x: canvasDimensions.width * 0.1,
         y: canvasDimensions.height * 0.2,
       });
+      const defaultFontOption = FONT_OPTIONS[0];
+      const defaultFontFamily = resolveFontFamily(defaultFontOption);
       setTexts((items) => [
         ...items,
         {
           id,
           content: quote.quote,
           fontSize: 30,
-          fontFamily:
-            FONT_OPTIONS[0]?.value ??
-            (Platform.OS === "ios" ? "Georgia" : "serif"),
-          fontWeight: FONT_WEIGHT_OPTIONS[1]?.value ?? "600",
+          fontFamily: defaultFontFamily,
+          fontId: defaultFontOption.id,
+          fontWeight: FONT_WEIGHT_OPTIONS[0]?.value ?? "400",
           color: colors.textPrimary,
           position: basePosition,
         },
@@ -765,9 +796,8 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
       y: canvasDimensions.height * 0.35,
     });
     const content = "טקסט חדש";
-    const fontFamily =
-      FONT_OPTIONS[1]?.value ??
-      (Platform.OS === "ios" ? "Avenir Next" : "sans-serif-medium");
+    const fallbackOption = FONT_OPTIONS[1] ?? FONT_OPTIONS[0];
+    const fontFamily = resolveFontFamily(fallbackOption);
     setTexts((items) => [
       ...items,
       {
@@ -775,7 +805,8 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
         content,
         fontSize: 34,
         fontFamily,
-        fontWeight: FONT_WEIGHT_OPTIONS[1]?.value ?? "600",
+        fontId: fallbackOption.id,
+        fontWeight: FONT_WEIGHT_OPTIONS[0]?.value ?? "400",
         color: colors.textPrimary,
         position: basePosition,
       },
@@ -805,21 +836,43 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
   );
 
   const handleChangeFont = useCallback(
-    (id: string, fontFamily: string) => {
-      updateText(id, (item) => ({
-        ...item,
-        fontFamily,
-      }));
+    (id: string, fontId: string) => {
+      const option =
+        FONT_OPTIONS.find((item) => item.id === fontId) ?? FONT_OPTIONS[0];
+      const fontFamily = resolveFontFamily(option);
+      updateText(id, (item) => {
+        const nextWeight =
+          option.id === "handwriting"
+            ? FONT_WEIGHT_OPTIONS[0].value
+            : item.fontWeight ?? FONT_WEIGHT_OPTIONS[0].value;
+        return {
+          ...item,
+          fontFamily,
+          fontId: option.id,
+          fontWeight: nextWeight,
+        };
+      });
     },
     [updateText]
   );
 
   const handleChangeFontWeight = useCallback(
     (id: string, fontWeight: TextStyle["fontWeight"]) => {
-      updateText(id, (item) => ({
-        ...item,
-        fontWeight,
-      }));
+      updateText(id, (item) => {
+        const option = item.fontId
+          ? FONT_OPTIONS.find((candidate) => candidate.id === item.fontId)
+          : findFontOptionByFamily(item.fontFamily);
+        if (
+          option?.id === "handwriting" &&
+          fontWeight !== FONT_WEIGHT_OPTIONS[0].value
+        ) {
+          return item;
+        }
+        return {
+          ...item,
+          fontWeight,
+        };
+      });
     },
     [updateText]
   );
@@ -1146,6 +1199,9 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
         if (weight === "normal") return "400";
         return weight;
       };
+      const selectedFontOption = selectedText.fontId
+        ? FONT_OPTIONS.find((option) => option.id === selectedText.fontId)
+        : findFontOptionByFamily(selectedText.fontFamily) ?? FONT_OPTIONS[0];
       const selectedWeight = normalizeWeight(selectedText.fontWeight);
       return (
         <View style={[styles.floatingPanel, styles.fontPanel]}>
@@ -1155,46 +1211,55 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
             contentContainerStyle={styles.fontScrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {FONT_OPTIONS.map((option) => (
-              <Pressable
-                key={option.value}
-                style={({ pressed }) => [
-                  styles.panelOption,
-                  selectedText.fontFamily === option.value
-                    ? styles.panelOptionSelected
-                    : null,
-                  pressed ? styles.panelOptionPressed : null,
-                ]}
-                onPress={() => handleChangeFont(selectedText.id, option.value)}
-              >
-                <Text
-                  style={[
-                    styles.panelOptionLabel,
-                    { fontFamily: option.value },
+            {FONT_OPTIONS.map((option) => {
+              const optionFontFamily = resolveFontFamily(option);
+              const isSelected = selectedText.fontId
+                ? selectedText.fontId === option.id
+                : selectedText.fontFamily === optionFontFamily;
+              return (
+                <Pressable
+                  key={option.id}
+                  style={({ pressed }) => [
+                    styles.panelOption,
+                    isSelected ? styles.panelOptionSelected : null,
+                    pressed ? styles.panelOptionPressed : null,
                   ]}
+                  onPress={() => handleChangeFont(selectedText.id, option.id)}
                 >
-                  {option.label}
-                </Text>
-              </Pressable>
-            ))}
+                  <Text
+                    style={[
+                      styles.panelOptionLabel,
+                      { fontFamily: optionFontFamily },
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </ScrollView>
           <View style={styles.fontWeightSection}>
-            <Text style={styles.fontWeightTitle}>עובי האותיות</Text>
             <View style={styles.fontWeightButtons}>
               {FONT_WEIGHT_OPTIONS.map((option) => {
                 const isSelected =
                   normalizeWeight(option.value) === selectedWeight;
+                const isDisabled =
+                  selectedFontOption?.id === "handwriting" &&
+                  option.value !== FONT_WEIGHT_OPTIONS[0].value;
                 return (
                   <Pressable
                     key={option.value ?? option.label}
                     style={({ pressed }) => [
                       styles.fontWeightButton,
                       isSelected ? styles.fontWeightButtonSelected : null,
-                      pressed && !isSelected
+                      pressed && !isSelected && !isDisabled
                         ? styles.fontWeightButtonPressed
                         : null,
+                      isDisabled ? styles.fontWeightButtonDisabled : null,
                     ]}
+                    disabled={isDisabled}
                     onPress={() =>
+                      !isDisabled &&
                       handleChangeFontWeight(selectedText.id, option.value)
                     }
                   >
@@ -1203,6 +1268,9 @@ export const CreateBackgroundScreen: React.FC<CreateBackgroundScreenProps> = ({
                         styles.fontWeightButtonLabel,
                         isSelected
                           ? styles.fontWeightButtonLabelSelected
+                          : null,
+                        isDisabled
+                          ? styles.fontWeightButtonLabelDisabled
                           : null,
                       ]}
                     >
@@ -1713,12 +1781,18 @@ const styles = StyleSheet.create({
     borderColor: colors.accent,
     backgroundColor: colors.accentSoft,
   },
+  fontWeightButtonDisabled: {
+    opacity: 0.5,
+  },
   fontWeightButtonLabel: {
     color: colors.textPrimary,
     fontWeight: "600",
   },
   fontWeightButtonLabelSelected: {
     color: colors.accent,
+  },
+  fontWeightButtonLabelDisabled: {
+    color: colors.textSecondary,
   },
   panelCloseButton: {
     alignSelf: "center",

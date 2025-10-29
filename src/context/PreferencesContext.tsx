@@ -1,0 +1,240 @@
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { STORAGE_KEYS, getBoolean, getString, removeItem, setBoolean, setString } from '../storage/preferencesStorage';
+import { cancelDailyQuoteNotification, scheduleDailyQuoteNotification } from '../utils/notifications';
+import { useShabbatRestriction } from '../context/ShabbatContext';
+
+type BackgroundTarget = 'home' | 'lock';
+
+type NotificationPreview = {
+  quote: string | null;
+  description: string;
+};
+
+type PreferencesState = {
+  wantsQuotes?: boolean;
+  notificationTime?: string;
+  selectedBackground?: string;
+  selectedBackgroundTarget?: BackgroundTarget;
+  loaded: boolean;
+  lastNotificationPreview?: NotificationPreview;
+};
+
+type PreferencesContextValue = PreferencesState & {
+  setWantsQuotes(value: boolean): void;
+  setNotificationTime(time?: string): void;
+  setSelectedBackground(id?: string, target?: BackgroundTarget): void;
+  setLastNotificationPreview(preview?: NotificationPreview | null): void;
+  reset(): void;
+};
+
+const PreferencesContext = createContext<PreferencesContextValue | undefined>(undefined);
+
+export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [state, setState] = useState<PreferencesState>({
+    wantsQuotes: undefined,
+    notificationTime: undefined,
+    selectedBackground: undefined,
+    selectedBackgroundTarget: undefined,
+    loaded: false,
+    lastNotificationPreview: undefined,
+  });
+  const { restriction, loading: restrictionLoading } = useShabbatRestriction();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPreferences = async () => {
+      try {
+        const [wantsQuotes, notificationTime, selectedBackground, selectedBackgroundTarget, lastNotificationPreviewRaw] = await Promise.all([
+          getBoolean(STORAGE_KEYS.wantsQuotes),
+          getString(STORAGE_KEYS.notificationTime),
+          getString(STORAGE_KEYS.selectedBackground),
+          getString(STORAGE_KEYS.selectedBackgroundTarget),
+          getString(STORAGE_KEYS.lastNotificationPreview),
+        ]);
+
+        let lastNotificationPreview: NotificationPreview | undefined;
+        if (lastNotificationPreviewRaw) {
+          try {
+            const parsed = JSON.parse(lastNotificationPreviewRaw) as NotificationPreview;
+            if (
+              parsed &&
+              typeof parsed === 'object' &&
+              'description' in parsed &&
+              typeof parsed.description === 'string'
+            ) {
+              lastNotificationPreview = {
+                description: parsed.description,
+                quote: parsed.quote ?? null,
+              };
+            }
+          } catch (error) {
+            console.warn('Error parsing last notification preview from AsyncStorage', error);
+          }
+        }
+
+        if (!isMounted) return;
+
+        setState({
+          wantsQuotes,
+          notificationTime: notificationTime ?? undefined,
+          selectedBackground: selectedBackground ?? undefined,
+          selectedBackgroundTarget: selectedBackgroundTarget === 'home' || selectedBackgroundTarget === 'lock' ? selectedBackgroundTarget : undefined,
+          loaded: true,
+          lastNotificationPreview,
+        });
+      } catch (error) {
+        if (!isMounted) return;
+        console.warn('Error loading preferences from AsyncStorage', error);
+        setState((prev) => ({ ...prev, loaded: true, lastNotificationPreview: undefined }));
+      }
+    };
+
+    loadPreferences();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const setWantsQuotes = useCallback((value: boolean) => {
+    setBoolean(STORAGE_KEYS.wantsQuotes, value).catch((error) => {
+      console.warn('Error saving quote preference to AsyncStorage', error);
+    });
+    setState((prev) => ({
+      ...prev,
+      wantsQuotes: value,
+      lastNotificationPreview: value ? prev.lastNotificationPreview : undefined,
+    }));
+    if (!value) {
+      cancelDailyQuoteNotification();
+      removeItem(STORAGE_KEYS.lastNotificationPreview).catch((error) => {
+        console.warn('Error clearing last notification preview from AsyncStorage', error);
+      });
+    }
+  }, []);
+
+  const setNotificationTime = useCallback((time?: string) => {
+    if (!time) {
+      removeItem(STORAGE_KEYS.notificationTime).catch((error) => {
+        console.warn('Error deleting notification time from AsyncStorage', error);
+      });
+    } else {
+      setString(STORAGE_KEYS.notificationTime, time).catch((error) => {
+        console.warn('Error saving notification time to AsyncStorage', error);
+      });
+    }
+    setState((prev) => ({ ...prev, notificationTime: time }));
+  }, []);
+
+  const setSelectedBackground = useCallback(
+    (id?: string, target?: BackgroundTarget) => {
+      if (!id) {
+        Promise.all([
+          removeItem(STORAGE_KEYS.selectedBackground),
+          removeItem(STORAGE_KEYS.selectedBackgroundTarget),
+        ]).catch((error) => {
+          console.warn('Error deleting selected background from AsyncStorage', error);
+        });
+        setState((prev) => ({ ...prev, selectedBackground: undefined, selectedBackgroundTarget: undefined }));
+        return;
+      }
+
+      const nextTarget: BackgroundTarget = target ?? state.selectedBackgroundTarget ?? 'home';
+
+      setString(STORAGE_KEYS.selectedBackground, id).catch((error) => {
+        console.warn('Error saving selected background to AsyncStorage', error);
+      });
+      setString(STORAGE_KEYS.selectedBackgroundTarget, nextTarget).catch((error) => {
+        console.warn('Error saving background target to AsyncStorage', error);
+      });
+
+      setState((prev) => ({ ...prev, selectedBackground: id, selectedBackgroundTarget: nextTarget }));
+    },
+    [state.selectedBackgroundTarget],
+  );
+
+  const setLastNotificationPreview = useCallback((preview?: NotificationPreview | null) => {
+    if (!preview) {
+      removeItem(STORAGE_KEYS.lastNotificationPreview).catch((error) => {
+        console.warn('Error clearing last notification preview from AsyncStorage', error);
+      });
+      setState((prev) => ({ ...prev, lastNotificationPreview: undefined }));
+      return;
+    }
+
+    setString(STORAGE_KEYS.lastNotificationPreview, JSON.stringify(preview)).catch((error) => {
+      console.warn('Error saving last notification preview to AsyncStorage', error);
+    });
+    setState((prev) => ({ ...prev, lastNotificationPreview: preview }));
+  }, []);
+
+  const reset = useCallback(() => {
+    Promise.all([
+      removeItem(STORAGE_KEYS.wantsQuotes),
+      removeItem(STORAGE_KEYS.notificationTime),
+      removeItem(STORAGE_KEYS.selectedBackground),
+      removeItem(STORAGE_KEYS.selectedBackgroundTarget),
+      removeItem(STORAGE_KEYS.lastNotificationPreview),
+    ]).catch((error) => {
+      console.warn('Error resetting preferences in AsyncStorage', error);
+    });
+    setState({
+      wantsQuotes: undefined,
+      notificationTime: undefined,
+      selectedBackground: undefined,
+      selectedBackgroundTarget: undefined,
+      loaded: true,
+      lastNotificationPreview: undefined,
+    });
+    cancelDailyQuoteNotification();
+  }, []);
+
+  useEffect(() => {
+    if (!state.loaded) return;
+
+    if (!state.wantsQuotes || !state.notificationTime) {
+      cancelDailyQuoteNotification().catch((error) => {
+        console.warn('Failed to cancel scheduled notifications', error);
+      });
+      return;
+    }
+
+    if (restrictionLoading) {
+      return;
+    }
+
+    if (restriction) {
+      cancelDailyQuoteNotification().catch((error) => {
+        console.warn('Failed to cancel scheduled notifications', error);
+      });
+      return;
+    }
+
+    scheduleDailyQuoteNotification(state.notificationTime).catch((error) => {
+      console.warn('Failed to schedule daily notification', error);
+    });
+  }, [restriction, restrictionLoading, state.loaded, state.notificationTime, state.wantsQuotes]);
+
+  const value = useMemo<PreferencesContextValue>(
+    () => ({
+      ...state,
+      setWantsQuotes,
+      setNotificationTime,
+      setSelectedBackground,
+      setLastNotificationPreview,
+      reset,
+    }),
+    [state, setNotificationTime, setSelectedBackground, setWantsQuotes, setLastNotificationPreview, reset],
+  );
+
+  return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>;
+};
+
+export function usePreferences() {
+  const context = useContext(PreferencesContext);
+  if (!context) {
+    throw new Error('PreferencesContext לא מאותחל');
+  }
+  return context;
+}

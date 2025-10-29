@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "אמונה",
+    "slug": "Emuna",
+    "version": "1.2.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.avivyona.emuna",
+      "infoPlist": {
+        "NSPhotoLibraryAddUsageDescription": "נדרש כדי לשמור רקעים מותאמים אישית לאלבום התמונות שלך.",
+        "NSPhotoLibraryUsageDescription": "נדרש כדי לשמור ולעדכן רקעים מותאמים אישית.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.Emuna"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "184a2778-506c-4c39-93f5-661d2c8629c2"
+      }
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}

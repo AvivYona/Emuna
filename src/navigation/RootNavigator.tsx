@@ -1,0 +1,88 @@
+import React from "react";
+import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { usePreferences } from "../context/PreferencesContext";
+import { useShabbatRestriction } from "../context/ShabbatContext";
+import { WelcomeScreen } from "../screens/WelcomeScreen";
+import { ScheduleScreen } from "../screens/ScheduleScreen";
+import { BackgroundsScreen } from "../screens/BackgroundsScreen";
+import { CreateBackgroundScreen } from "../screens/CreateBackgroundScreen";
+import { ShabbatRestrictionScreen } from "../screens/ShabbatRestrictionScreen";
+import { colors } from "../theme";
+import { BackgroundPickerScreen } from "../screens/BackgroundPickerScreen";
+import { Background } from "../api/types";
+import { SplashScreenOverlay } from "../components/SplashScreenOverlay";
+
+export type BackgroundSelectionParam =
+  | { type: "clean"; background: Background }
+  | { type: "import"; uri: string };
+
+export type RootStackParamList = {
+  Welcome:
+    | {
+        startAtSchedule?: boolean;
+        showPicker?: boolean;
+        returnTo?: "Backgrounds";
+      }
+    | undefined;
+  Schedule: undefined;
+  Backgrounds: { highlightBackgroundId?: string } | undefined;
+  BackgroundPicker: undefined;
+  CreateBackground: {
+    initialBackground: BackgroundSelectionParam;
+  };
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const navigationTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: colors.background,
+    text: colors.textPrimary,
+  },
+};
+
+export const RootNavigator = () => {
+  const { loaded, wantsQuotes } = usePreferences();
+  const { loading: restrictionLoading, restriction } = useShabbatRestriction();
+
+  if (!loaded) {
+    return <SplashScreenOverlay />;
+  }
+
+  if (!restriction && restrictionLoading) {
+    return <SplashScreenOverlay />;
+  }
+
+  if (restriction) {
+    return <ShabbatRestrictionScreen loading={restrictionLoading} />;
+  }
+
+  const showOnboarding = wantsQuotes === undefined;
+
+  return (
+    <NavigationContainer theme={navigationTheme}>
+      <Stack.Navigator
+        initialRouteName={showOnboarding ? "Welcome" : "Backgrounds"}
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
+        <Stack.Screen name="Welcome" component={WelcomeScreen} />
+        <Stack.Screen name="Schedule" component={ScheduleScreen} />
+        <Stack.Screen name="Backgrounds" component={BackgroundsScreen} />
+        <Stack.Screen
+          name="BackgroundPicker"
+          component={BackgroundPickerScreen}
+        />
+        <Stack.Screen
+          name="CreateBackground"
+          component={CreateBackgroundScreen}
+        />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};

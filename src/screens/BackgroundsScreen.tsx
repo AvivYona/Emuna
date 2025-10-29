@@ -770,10 +770,7 @@ export const BackgroundsScreen: React.FC<BackgroundsScreenProps> = ({
             await FileSystem.deleteAsync(capturedUri, { idempotent: true });
           }
         } catch (cleanupError) {
-          console.warn(
-            "Failed to clean up captured quote image",
-            cleanupError
-          );
+          console.warn("Failed to clean up captured quote image", cleanupError);
         }
       }
       setSharingQuote(false);

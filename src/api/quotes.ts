@@ -6,9 +6,10 @@ export async function getQuotes(): Promise<Quote[]> {
 }
 
 export async function getRandomQuote(): Promise<Quote | null> {
-  const quotes = await getQuotes();
-  if (!quotes.length) {
+  try {
+    return await fetchJson<Quote>("/quotes/random");
+  } catch (error) {
+    console.warn("Failed to fetch random quote", error);
     return null;
   }
-  return quotes[Math.floor(Math.random() * quotes.length)];
 }

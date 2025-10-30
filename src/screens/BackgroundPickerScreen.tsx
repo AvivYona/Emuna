@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   ActivityIndicator,
   FlatList,
   Image,
@@ -121,13 +122,17 @@ export const BackgroundPickerScreen: React.FC<BackgroundPickerScreenProps> = ({
     setImporting(true);
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 1,
       });
       if (result.canceled || !result.assets || result.assets.length === 0) {
         return;
       }
       const [asset] = result.assets;
+      if (asset && asset.type && asset.type !== "image") {
+        Alert.alert("קובץ לא נתמך", "אנא בחרו תמונה כדי להשתמש כרקע.");
+        return;
+      }
       if (asset?.uri) {
         setSelection({ type: "import", uri: asset.uri });
         setSelectedCleanId(null);
